@@ -1,0 +1,6 @@
+[Unit]
+Description=Pulizia automatica: Downloads, cestino, cache
+
+[Service]
+Type=oneshot
+ExecStart=%h/MusiGuard/pulizia-automatica.sh

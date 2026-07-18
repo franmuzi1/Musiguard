@@ -1,0 +1,12 @@
+[Unit]
+Description=Guardiano download: scansione e smistamento Pre-Download
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+ExecStart=%h/MusiGuard/guardiano-download.sh
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

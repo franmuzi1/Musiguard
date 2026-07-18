@@ -1,0 +1,10 @@
+[Unit]
+Description=Esegue la pulizia automatica ogni giorno
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+RandomizedDelaySec=10min
+
+[Install]
+WantedBy=timers.target
