@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Exec=/home/user/MusiGuard/guardiano-download.sh
+Hidden=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
+Name=Guardiano Download
+Comment=Controllo automatico antivirus per la cartella Pre-Download
+Icon=security-high
