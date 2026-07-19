@@ -1,0 +1,13 @@
+# MusiGuard: sincro Syncthing giornaliera (avvia, sincronizza, spegne).
+# Non si avvia da sola: la lancia musiguard-sincro.timer (vedi).
+# Installazione: ./installa-servizio.sh
+
+[Unit]
+Description=MusiGuard - sincro Syncthing giornaliera (avvia-sincronizza-spegni)
+
+[Service]
+Type=oneshot
+ExecStart=%h/MusiGuard/sincro-syncthing.sh
+# La sincro può legittimamente durare fino a SINCRO_MAX_MINUTI (default 30)
+# più l'avvio: un po' di margine prima che systemd la consideri appesa.
+TimeoutStartSec=45min

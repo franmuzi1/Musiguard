@@ -9,7 +9,9 @@ set -u
 
 DIR_SRC="$(cd "$(dirname "$0")" && pwd)"
 UNIT_DIR="${HOME}/.config/systemd/user"
-UNITS=(musiguard-guardiano.service musiguard-pulizia.service musiguard-pulizia.timer)
+UNITS=(musiguard-guardiano.service musiguard-pulizia.service musiguard-pulizia.timer
+       musiguard-sentinella.service musiguard-sentinella.timer
+       musiguard-sincro.service musiguard-sincro.timer)
 UNITS_VECCHIE=(guardiano.service pulizia.timer pulizia.service)
 
 for U in "${UNITS[@]}" configura.sh; do
@@ -68,6 +70,12 @@ else
     systemctl --user disable --now musiguard-pulizia.timer 2>/dev/null || true
     echo "Pulizia giornaliera disattivata da configurazione."
 fi
+
+# Sentinella disco e sincro Syncthing: sempre attive (sono innocue: la
+# sentinella al massimo notifica, la sincro esce subito se Syncthing non è
+# configurato). Per spegnerle: systemctl --user disable --now <timer>.
+systemctl --user enable --now musiguard-sentinella.timer
+systemctl --user enable --now musiguard-sincro.timer
 
 echo
 systemctl --user status musiguard-guardiano.service --no-pager || true

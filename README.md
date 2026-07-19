@@ -19,6 +19,8 @@ Tutto avviene in modo asincrono in background, con notifiche desktop solo quando
 *   ⏱️ **Anti-Corruzione File:** attende che la dimensione del file sia stabile prima di processarlo; un download ancora in corso non viene mai spostato troncato.
 *   🔒 **Robustezza:** `set -u` + shellcheck su tutti gli script, lock `flock` contro le istanze doppie, log con rotazione integrata, riavvio automatico via systemd.
 *   🧹 **Manutenzione "Zero-Touch":** timer systemd giornaliero per pulizia Downloads vecchi, cestino e cache.
+*   💾 **Sentinella spazio disco:** controllo giornaliero; sopra la soglia (`SOGLIA_DISCO_PCT`, default 90%) arriva una notifica coi 5 "pesi massimi" della home. Non cancella mai nulla da sola.
+*   🔄 **Sincro Syncthing a orario:** invece del demone sempre acceso, ogni sera alle 20 Syncthing viene avviato, si aspetta il 100% di sincronizzazione (via API locale, tetto `SINCRO_MAX_MINUTI`, default 30) e si rispegne. Se lo hai avviato tu a mano, non viene toccato.
 
 ## ⚙️ Il Flusso di Lavoro (Pipeline)
 
@@ -48,11 +50,17 @@ MusiGuard/
 ├── guardiano-download.sh          # Il demone in ascolto su ~/PreDownload
 ├── AntiVirusDIY.sh                # Motore di scansione (MIME, SHA256, ClamAV)
 ├── pulizia-automatica.sh          # Manutenzione: Downloads vecchi, cestino, cache
+├── sentinella-spazio.sh           # Avviso disco pieno coi 5 "pesi massimi" (non cancella nulla)
+├── sincro-syncthing.sh            # Syncthing a orario: avvia, sincronizza, spegne
 ├── configura.sh                   # Wizard di scelta dei moduli (primo avvio e on-demand)
 ├── installa-servizio.sh           # Installa/aggiorna le unit systemd utente
 ├── musiguard-guardiano.service    # Servizio del guardiano (Restart=on-failure)
 ├── musiguard-pulizia.service      # Servizio oneshot della pulizia
-└── musiguard-pulizia.timer        # Timer giornaliero della pulizia
+├── musiguard-pulizia.timer        # Timer giornaliero della pulizia
+├── musiguard-sentinella.service   # Servizio oneshot della sentinella disco
+├── musiguard-sentinella.timer     # Timer giornaliero della sentinella
+├── musiguard-sincro.service       # Servizio oneshot della sincro Syncthing
+└── musiguard-sincro.timer         # Timer della sincro (ogni sera alle 20)
 ```
 
 ## 🔧 Installazione e Setup
@@ -94,5 +102,7 @@ systemctl --user list-timers musiguard-pulizia.timer
 cat ~/MusiGuard/estrazioni.log                  # esiti delle estrazioni
 cat ~/MusiGuard/quarantena.log                  # storia della quarantena (file e motivi)
 ls -la ~/PreDownload/.Quarantena                # cosa c'è in quarantena adesso
+cat ~/MusiGuard/sentinella.log                  # storico controlli spazio disco
+cat ~/MusiGuard/sincro.log                      # esiti delle sincro Syncthing
 ```
 
