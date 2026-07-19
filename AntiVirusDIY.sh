@@ -134,6 +134,36 @@ elif [[ "$REAL_TYPE" == *"x-dosexec"* || "$REAL_TYPE" == *"x-msdownload"* ]]; th
     fi
 fi
 
+# NUOVO: anti-spoofing del NOME (il controllo MIME sopra guarda il contenuto;
+# qui si guarda il nome, cioè quello che l'occhio dell'utente vede davvero).
+# 1) Caratteri Unicode direzionali o invisibili: con U+202E (RTLO) un nome
+#    tipo "fattura<RTLO>fdp.exe" viene MOSTRATO come "fatturaexe.pdf" — il
+#    trucco classico per far cliccare un eseguibile. Nessun download
+#    legittimo ha bisogno di questi caratteri nel nome; si copre anche la
+#    famiglia zero-width (U+200B..) e gli isolati bidirezionali (U+2066..).
+if grep -qP '[\x{200B}-\x{200F}\x{202A}-\x{202E}\x{2066}-\x{2069}\x{FEFF}]' <<< "$NOME_FILE"; then
+    PROBLEMI+="❌ NOME INGANNEVOLE: il nome contiene caratteri Unicode invisibili o direzionali (trucco RTLO): quello che leggi NON è il vero nome del file.\n\n"
+fi
+# 2) Doppia estensione ingannevole ("fattura.pdf.exe"): estensione FINALE
+#    eseguibile/script preceduta da un'estensione da documento/media messa
+#    lì per ingannare. Copre anche i tipi che il controllo MIME non prende
+#    (js/vbs/ps1 per "file" sono solo testo, jar è uno zip). Gli spazi
+#    attorno alla penultima estensione si scartano: neutralizza il trucco
+#    del riempimento "documento.pdf                .exe".
+if [[ "$NOME_FILE" == *.*.* ]]; then
+    SENZA_ULTIMA="${NOME_FILE%.*}"
+    EXT_PENULTIMA=$(tr '[:upper:]' '[:lower:]' <<< "${SENZA_ULTIMA##*.}" | tr -d ' ')
+    case "$EXTENSION" in
+        exe|scr|com|pif|bat|cmd|msi|js|jse|vbs|vbe|wsf|ps1|hta|jar|sh|run|bin|appimage)
+            case "$EXT_PENULTIMA" in
+                pdf|doc|docx|xls|xlsx|ppt|pptx|odt|txt|rtf|csv|jpg|jpeg|png|gif|webp|svg|mp3|wav|flac|mp4|mkv|avi|mov|zip|rar|7z)
+                    PROBLEMI+="❌ DOPPIA ESTENSIONE INGANNEVOLE: \"$NOME_FILE\" si spaccia per un .$EXT_PENULTIMA ma in realtà è un .$EXTENSION (eseguibile/script). Trucco classico per far aprire malware.\n\n"
+                    ;;
+            esac
+            ;;
+    esac
+fi
+
 # Scansione ClamAV. exit 1 = virus, >=2 = errore di scansione (non minaccia).
 # FIX: se c'e' clamdscan (pacchetto clamav-daemon) usiamo quello: le firme
 # sono gia' in memoria nel demone e la scansione e' quasi istantanea, mentre
