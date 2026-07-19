@@ -16,11 +16,12 @@ leggi() {
 }
 
 # Stato attuale come default del wizard (tutto attivo al primo avvio).
+# SMISTA: si legge anche la vecchia chiave SMISTA_CATEGORIE (conf esistenti).
 GUARDIANO=$(leggi ATTIVA_GUARDIANO 1)
 PULIZIA=$(leggi ATTIVA_PULIZIA 1)
 SHA=$(leggi CHIEDI_SHA 1)
 ESTRAI=$(leggi ESTRAI_ARCHIVI 1)
-SMISTA=$(leggi SMISTA_CATEGORIE 1)
+SMISTA=$(leggi SMISTA_ESTENSIONE "$(leggi SMISTA_CATEGORIE 1)")
 MAX_MB=$(leggi MAX_ESTRAZIONE_MB 10240)
 
 b2z() { [ "$1" = 1 ] && echo TRUE || echo FALSE; }
@@ -31,11 +32,11 @@ if command -v zenity &>/dev/null && [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; t
         --text="Scegli i moduli da attivare (riconfigurabile con ./configura.sh):" \
         --column="Attivo" --column="ID" --column="Modulo" \
         --hide-column=2 --print-column=2 --separator="|" \
-        "$(b2z "$GUARDIANO")" guardiano "🛡️ Guardiano download (controlla e smista i file di PreDownload)" \
+        "$(b2z "$GUARDIANO")" guardiano "🛡️ Antivirus download: controlla che i file scaricati NON siano pericolosi (da solo non smista: i file sicuri vanno in Downloads)" \
         "$(b2z "$PULIZIA")"   pulizia   "🧹 Pulizia giornaliera (Downloads vecchi, cestino, cache)" \
         "$(b2z "$SHA")"       sha       "🔎 Verifica SHA256 dagli appunti" \
         "$(b2z "$ESTRAI")"    estrai    "📦 Estrazione automatica degli archivi" \
-        "$(b2z "$SMISTA")"    smista    "📂 Smistamento per categorie (senza: tutto in Downloads)" \
+        "$(b2z "$SMISTA")"    smista    "📂 Smistamento per estensione (senza: tutto in Downloads)" \
         --width=640 --height=360 2>/dev/null) || {
         echo "Configurazione annullata: nessuna modifica."
         exit 0
@@ -57,11 +58,11 @@ else
         fi
     }
     echo "MusiGuard — configurazione moduli (Invio = valore tra parentesi)"
-    GUARDIANO=$(chiedi "🛡️ Attivare il guardiano download?" "$GUARDIANO")
+    GUARDIANO=$(chiedi "🛡️ Attivare l'antivirus download? (controlla che i file non siano pericolosi; da solo non smista)" "$GUARDIANO")
     PULIZIA=$(chiedi "🧹 Attivare la pulizia giornaliera?" "$PULIZIA")
     SHA=$(chiedi "🔎 Attivare la verifica SHA256 dagli appunti?" "$SHA")
     ESTRAI=$(chiedi "📦 Attivare l'estrazione automatica degli archivi?" "$ESTRAI")
-    SMISTA=$(chiedi "📂 Attivare lo smistamento per categorie?" "$SMISTA")
+    SMISTA=$(chiedi "📂 Attivare lo smistamento per estensione?" "$SMISTA")
 fi
 
 mkdir -p "$(dirname "$CONF")"
@@ -72,7 +73,7 @@ ATTIVA_GUARDIANO=$GUARDIANO
 ATTIVA_PULIZIA=$PULIZIA
 CHIEDI_SHA=$SHA
 ESTRAI_ARCHIVI=$ESTRAI
-SMISTA_CATEGORIE=$SMISTA
+SMISTA_ESTENSIONE=$SMISTA
 # Tetto (MB) alla dimensione decompressa degli archivi estratti in automatico.
 MAX_ESTRAZIONE_MB=$MAX_MB
 EOF

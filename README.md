@@ -10,7 +10,7 @@ Tutto avviene in modo asincrono in background, con notifiche desktop solo quando
     *   **Controllo MIME vs Estensione:** rileva eseguibili nascosti — sia Linux (ELF/script) sia **Windows (PE)** — camuffati da `.pdf`, `.jpg`, ecc.
     *   **Verifica SHA256 dagli appunti:** se hai copiato l'hash dal sito del download, viene confrontato in automatico. Niente popup: se negli appunti non c'è un hash, non succede (e non si calcola) nulla.
     *   **Scansione ClamAV:** usa `clamdscan` (istantaneo, firme in memoria) se il demone è installato, altrimenti `clamscan`. In caso di minaccia il file viene isolato e ti viene chiesto come procedere.
-*   📂 **Smistamento Intelligente:** riconosce il tipo di file e lo sposta nella cartella giusta (Documenti, Immagini, Video, Musica, Archivi, Stampa 3D), gestendo le collisioni di nomi con suffissi `(1)`, `(2)`, …
+*   📂 **Smistamento per estensione:** riconosce il tipo di file e lo sposta nella cartella giusta (Documenti, Immagini, Video, Musica, Archivi, Stampa 3D), gestendo le collisioni di nomi con suffissi `(1)`, `(2)`, … Modulo opzionale: senza, l'antivirus controlla i file e li lascia in `~/Downloads`.
 *   📦 **Estrazione Automatica & Sicura:** archivi (`zip`, `tar.*`, `tgz`, `rar`, `7z`) e compressi singoli (`gz`, `bz2`, `xz`, `zst`) estratti in background in sottocartelle dedicate, con protezione **anti zip-bomb** (limite sulla dimensione decompressa, `MAX_ESTRAZIONE_MB`). A estrazione riuscita l'archivio originale viene eliminato.
 *   ⏱️ **Anti-Corruzione File:** attende che la dimensione del file sia stabile prima di processarlo; un download ancora in corso non viene mai spostato troncato.
 *   🔒 **Robustezza:** `set -u` + shellcheck su tutti gli script, lock `flock` contro le istanze doppie, log con rotazione integrata, riavvio automatico via systemd.
@@ -23,7 +23,7 @@ Tutto avviene in modo asincrono in background, con notifiche desktop solo quando
 3. **Analisi:** `AntiVirusDIY.sh` controlla MIME, SHA256 (dagli appunti) e ClamAV.
 4. **Smistamento:** il file sicuro viene spostato nella categoria adeguata; quello sospetto resta in quarantena finché non decidi tu.
 5. **Post-Elaborazione:** se è un archivio, parte l'estrazione in background (con limiti anti-bomba).
-6. **Notifica:** un popup ti avvisa del successo, con click per aprire la cartella.
+6. **Notifica:** UNA sola notifica per file, con click per aprire la cartella dove è finito (per gli archivi: direttamente la cartella estratta).
 
 ## 🛠️ Prerequisiti
 
@@ -60,7 +60,7 @@ chmod +x *.sh
 ./installa-servizio.sh
 ```
 
-Alla **prima installazione** parte il wizard di configurazione: scegli quali moduli attivare (guardiano, pulizia giornaliera, verifica SHA, estrazione automatica, smistamento per categorie). Per riconfigurare in qualsiasi momento:
+Alla **prima installazione** parte il wizard di configurazione: scegli quali moduli attivare (antivirus download, pulizia giornaliera, verifica SHA, estrazione automatica, smistamento per estensione). Il modulo base è l'**antivirus**: da solo non smista, si assicura solo che i file scaricati non siano pericolosi e li passa in `~/Downloads`. Per riconfigurare in qualsiasi momento:
 
 ```bash
 ./configura.sh
@@ -68,7 +68,7 @@ Alla **prima installazione** parte il wizard di configurazione: scegli quali mod
 
 Poi imposta il browser per scaricare in `~/PreDownload` anziché in `~/Downloads`.
 
-Le scelte finiscono in `~/.config/musiguard.conf` (solo righe `CHIAVE=numero`, il file viene letto e mai eseguito): `ATTIVA_GUARDIANO`, `ATTIVA_PULIZIA`, `CHIEDI_SHA`, `ESTRAI_ARCHIVI`, `SMISTA_CATEGORIE`, `MAX_ESTRAZIONE_MB`. Modificabile anche a mano (dopo, riavvia il guardiano: `systemctl --user restart musiguard-guardiano`).
+Le scelte finiscono in `~/.config/musiguard.conf` (solo righe `CHIAVE=numero`, il file viene letto e mai eseguito): `ATTIVA_GUARDIANO`, `ATTIVA_PULIZIA`, `CHIEDI_SHA`, `ESTRAI_ARCHIVI`, `SMISTA_ESTENSIONE`, `MAX_ESTRAZIONE_MB`. Modificabile anche a mano (dopo, riavvia il guardiano: `systemctl --user restart musiguard-guardiano`).
 
 Comandi utili:
 

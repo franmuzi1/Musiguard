@@ -20,9 +20,10 @@ leggi_conf() {
     echo "${V:-$2}"
 }
 # ESTRAI_ARCHIVI=0 lascia gli archivi compressi dove vengono smistati;
-# SMISTA_CATEGORIE=0 manda tutto in ~/Downloads senza dividere per tipo.
+# SMISTA_ESTENSIONE=0 manda tutto in ~/Downloads senza dividere per tipo
+# (si legge anche la vecchia chiave SMISTA_CATEGORIE per i conf esistenti).
 ESTRAI_ARCHIVI=$(leggi_conf ESTRAI_ARCHIVI 1)
-SMISTA_CATEGORIE=$(leggi_conf SMISTA_CATEGORIE 1)
+SMISTA_ESTENSIONE=$(leggi_conf SMISTA_ESTENSIONE "$(leggi_conf SMISTA_CATEGORIE 1)")
 # Anti zip-bomb / disco pieno: tetto (in MB) alla dimensione DECOMPRESSA
 # di un archivio estratto in automatico. Oltre questa soglia l'estrazione
 # viene rifiutata (zip/7z, che dichiarano il totale) o uccisa da ulimit
@@ -70,28 +71,29 @@ escape_markup() {
     sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g' <<< "$1"
 }
 
-# Notifica "file a posto": cliccando sul corpo della notifica apre la
-# cartella di destinazione col file manager. Usa notify-send (libnotify)
-# perché zenity --notification non gestisce i click. La chiave azione
-# "default" è la convenzione libnotify per l'attivazione con UN click sul
-# corpo (niente pulsante da espandere). L'hint transient (-h int:transient:1)
-# impedisce a GNOME di lasciare una copia nel centro notifiche: resta solo il
-# banner, così non compaiono due notifiche. -t 5000 = durata banner 5s.
-# notify-send resta in attesa e stampa la chiave premuta; per questo va
-# chiamata in background (vedi "&" sotto), così non blocca i file successivi.
-notifica_ok() {
-    local NOME="$1" CARTELLA="$2"
+# Notifica cliccabile: un click sul corpo apre la cartella indicata col file
+# manager. Usa notify-send (libnotify) perché zenity --notification non
+# gestisce i click. La chiave azione "default" è la convenzione libnotify per
+# l'attivazione con UN click sul corpo (niente pulsante da espandere).
+# L'hint transient (-h int:transient:1) impedisce a GNOME di lasciare una
+# copia nel centro notifiche: resta solo il banner. -t 5000 = durata 5s.
+# notify-send resta in attesa e stampa la chiave premuta; per questo dal
+# loop principale va chiamata in background (&), così non blocca i file
+# successivi. FIX: unica funzione per smistamento ED estrazione — prima un
+# archivio generava DUE notifiche ("è sicuro" + "estrazione completata");
+# ora ne arriva una sola, che apre la cartella dove i file sono finiti.
+notifica_click() {
+    local TITOLO="$1" CORPO="$2" CARTELLA="$3"
     if command -v notify-send &>/dev/null; then
         local AZIONE
         AZIONE=$(notify-send --app-name="MusiGuard" --icon=folder-download \
             -h int:transient:1 -t 5000 \
             -A "default=Apri cartella" \
-            "✅ $NOME è sicuro" \
-            "Ordinato in: ${CARTELLA#"$HOME"/}" 2>/dev/null)
+            "$TITOLO" "$CORPO" 2>/dev/null)
         [ "$AZIONE" = "default" ] && xdg-open "$CARTELLA" &>/dev/null
     else
         # Fallback se libnotify manca: notifica passiva, senza click.
-        zenity --notification --text="✅ $NOME è sicuro.\n📂 ${CARTELLA#"$HOME"/}" 2>/dev/null
+        zenity --notification --text="$TITOLO\n📂 $CORPO" 2>/dev/null
     fi
 }
 
@@ -204,12 +206,18 @@ estrai_archivio() {
                 else
                     echo "[$(date '+%Y-%m-%d %H:%M:%S')] ⚠️ Formato ignorato o non supportato (zstd non installato): $NOME" >> "$LOG_ESTRAZIONI"
                     rm -rf "$PATH_DEST_ESTRAZIONE"
+                    # Il file resta dov'è stato smistato: la notifica (unica)
+                    # qui è quella di smistamento, visto che non si estrae.
+                    notifica_click "✅ $NOME è sicuro" \
+                        "Ordinato in: ${DIR_DEST#"$HOME"/} (non estratto: manca zstd)" "$DIR_DEST"
                     exit 0
                 fi
                 ;;
             *)
                 echo "[$(date '+%Y-%m-%d %H:%M:%S')] ⚠️ Formato ignorato o non supportato: $NOME" >> "$LOG_ESTRAZIONI"
                 rm -rf "$PATH_DEST_ESTRAZIONE"
+                notifica_click "✅ $NOME è sicuro" \
+                    "Ordinato in: ${DIR_DEST#"$HOME"/}" "$DIR_DEST"
                 exit 0
                 ;;
         esac
@@ -218,9 +226,10 @@ estrai_archivio() {
         if [ $SUCCESSO -eq 0 ]; then
             rm -f "$FILE_PATH"
             echo "[$(date '+%Y-%m-%d %H:%M:%S')] ✅ OK: $NOME estratto in '$NOME_CART/' e rimosso." >> "$LOG_ESTRAZIONI"
-            if command -v notify-send &>/dev/null; then
-                notify-send --app-name="MusiGuard" --icon=folder "📦 Estrazione completata" "$NOME estratto ed eliminato." 2>/dev/null
-            fi
+            # UNICA notifica per gli archivi (lo smistamento tace apposta):
+            # click -> apre direttamente la cartella coi file estratti.
+            notifica_click "📦 $NOME estratto" \
+                "File sistemati in: ${PATH_DEST_ESTRAZIONE#"$HOME"/}" "$PATH_DEST_ESTRAZIONE"
         else
             echo "[$(date '+%Y-%m-%d %H:%M:%S')] ❌ ERRORE: Fallita estrazione di $NOME" >> "$LOG_ESTRAZIONI"
             # FIX: rm -rf al posto di rmdir. Su estrazione fallita a metà
@@ -256,7 +265,7 @@ smista_file() {
     esac
 
     local DESTINAZIONE="$DIR_DOWN"
-    if [ "$SMISTA_CATEGORIE" = 1 ]; then
+    if [ "$SMISTA_ESTENSIONE" = 1 ]; then
         case "$ESTENSIONE" in
             pdf|doc|docx|txt|odt|rtf|xls|xlsx|csv) DESTINAZIONE="$DIR_DOCS" ;;
             jpg|jpeg|png|gif|webp|svg) DESTINAZIONE="$DIR_IMG" ;;
@@ -282,15 +291,18 @@ smista_file() {
     fi
 
     if mv "$FILE_DA_SMISTARE" "$DEST_PATH"; then
-        # In background (&) per non fermare il ciclo mentre la notifica
-        # aspetta l'eventuale click su "Apri cartella".
-        notifica_ok "$NOME_FILE" "$DESTINAZIONE" &
-
         # --- SE È UN ARCHIVIO (e il modulo è attivo), LO ESTRAE ---
         # Si decide sull'estensione, non sulla destinazione: così funziona
-        # anche con lo smistamento per categorie disattivato.
+        # anche con lo smistamento per estensione disattivato.
+        # FIX: per gli archivi da estrarre NIENTE notifica qui — la manda
+        # l'estrattore a lavoro finito (una sola, sulla cartella estratta).
         if [ "$ESTRAI_ARCHIVI" = 1 ] && [ "$E_ARCHIVIO" = 1 ]; then
             estrai_archivio "$DEST_PATH"
+        else
+            # In background (&) per non fermare il ciclo mentre la notifica
+            # aspetta l'eventuale click su "Apri cartella".
+            notifica_click "✅ $NOME_FILE è sicuro" \
+                "Ordinato in: ${DESTINAZIONE#"$HOME"/}" "$DESTINAZIONE" &
         fi
     else
         # < /dev/null: chiamata dal loop while read, non deve toccare la pipe.
