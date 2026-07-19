@@ -35,3 +35,41 @@ MusiGuard richiede alcuni pacchetti standard presenti nei repository Debian/Ubun
 ```bash
 sudo apt update
 sudo apt install inotify-tools clamav zenity libnotify-bin libimage-exiftool-perl tar unzip unrar p7zip-full -y
+
+
+📂 Struttura del Progetto
+Plaintext
+MusiGuard/
+├── daemon.sh              # Il demone principale in ascolto su ~/PreDownload
+├── AntiVirusDIY.sh        # Motore di scansione (ClamAV, SHA256, MIME check)
+├── manutenzione.sh        # Script per pulizia programmata file vecchi/cestino
+├── estrazioni.log         # Log delle operazioni di estrazione archivi
+└── Configs/
+    ├── manutenzione-musiguard.service  # Systemd service
+    ├── manutenzione-musiguard.timer    # Systemd timer (Daily)
+    └── logrotate_musiguard             # Configurazione Logrotate
+🔧 Installazione e Setup
+Clona il repository:
+
+Bash
+git clone [https://github.com/TUO-NOME-UTENTE/MusiGuard.git](https://github.com/TUO-NOME-UTENTE/MusiGuard.git) ~/MusiGuard
+cd ~/MusiGuard
+Rendi gli script eseguibili:
+
+Bash
+chmod +x daemon.sh AntiVirusDIY.sh manutenzione.sh
+Imposta il tuo browser:
+Modifica le impostazioni del tuo browser per scaricare i file di default nella cartella ~/PreDownload anziché in ~/Downloads.
+
+Avvia i servizi automatici:
+Copia il timer systemd e avvialo:
+
+Bash
+mkdir -p ~/.config/systemd/user/
+cp Configs/manutenzione-musiguard.* ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now manutenzione-musiguard.timer
+Rotazione Log:
+
+Bash
+sudo cp Configs/logrotate_musiguard /etc/logrotate.d/musiguard
