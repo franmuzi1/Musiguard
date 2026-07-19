@@ -14,12 +14,16 @@ UNITS=(musiguard-guardiano.service musiguard-pulizia.service musiguard-pulizia.t
        musiguard-sincro.service musiguard-sincro.timer)
 UNITS_VECCHIE=(guardiano.service pulizia.timer pulizia.service)
 
-for U in "${UNITS[@]}" configura.sh; do
-    if [ ! -f "$DIR_SRC/$U" ]; then
-        echo "Errore: $DIR_SRC/$U non trovato." >&2
+for U in "${UNITS[@]}"; do
+    if [ ! -f "$DIR_SRC/systemd/$U" ]; then
+        echo "Errore: $DIR_SRC/systemd/$U non trovato." >&2
         exit 1
     fi
 done
+if [ ! -f "$DIR_SRC/scripts/configura.sh" ]; then
+    echo "Errore: $DIR_SRC/scripts/configura.sh non trovato." >&2
+    exit 1
+fi
 
 # Se il guardiano gira già a mano, il lock farebbe uscire subito l'istanza
 # del servizio: meglio avvisare ed uscire che installare un servizio zombie.
@@ -40,15 +44,15 @@ for U in "${UNITS_VECCHIE[@]}"; do
 done
 
 mkdir -p "$UNIT_DIR"
-for U in "${UNITS[@]}"; do cp "$DIR_SRC/$U" "$UNIT_DIR/"; done
+for U in "${UNITS[@]}"; do cp "$DIR_SRC/systemd/$U" "$UNIT_DIR/"; done
 systemctl --user daemon-reload
 
 # PRIMO AVVIO: se il conf non esiste, parte il wizard di configurazione dei
 # moduli (scrive il conf e attiva/disattiva i servizi da solo). Nelle
-# installazioni successive si rilancia a mano con ./configura.sh.
+# installazioni successive si rilancia a mano con ./scripts/configura.sh.
 CONF="${HOME}/.config/musiguard.conf"
 if [ ! -f "$CONF" ]; then
-    "$DIR_SRC/configura.sh"
+    "$DIR_SRC/scripts/configura.sh"
 fi
 
 # Applica le scelte dei moduli (default: tutto attivo).
@@ -62,7 +66,7 @@ if [ "$(leggi ATTIVA_GUARDIANO 1)" = 1 ]; then
     systemctl --user restart musiguard-guardiano.service
 else
     systemctl --user disable --now musiguard-guardiano.service 2>/dev/null || true
-    echo "Guardiano disattivato da configurazione (riattivabile con ./configura.sh)."
+    echo "Guardiano disattivato da configurazione (riattivabile con ./scripts/configura.sh)."
 fi
 if [ "$(leggi ATTIVA_PULIZIA 1)" = 1 ]; then
     systemctl --user enable --now musiguard-pulizia.timer

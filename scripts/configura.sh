@@ -31,7 +31,7 @@ b2z() { [ "$1" = 1 ] && echo TRUE || echo FALSE; }
 if command -v zenity &>/dev/null && [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; then
     # --print-column=2 restituisce gli ID delle righe spuntate, separati da |.
     SEL=$(zenity --list --checklist --title="MusiGuard — Configurazione moduli" \
-        --text="Scegli i moduli da attivare (riconfigurabile con ./configura.sh):" \
+        --text="Scegli i moduli da attivare (riconfigurabile con ./scripts/configura.sh):" \
         --column="Attivo" --column="ID" --column="Modulo" \
         --hide-column=2 --print-column=2 --separator="|" \
         "$(b2z "$GUARDIANO")" guardiano "🛡️ Antivirus download: controlla che i file scaricati NON siano pericolosi (da solo non smista: i file sicuri vanno in Downloads)" \

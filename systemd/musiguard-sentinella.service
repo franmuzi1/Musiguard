@@ -7,4 +7,4 @@ Description=MusiGuard - sentinella spazio disco (avviso sopra soglia)
 
 [Service]
 Type=oneshot
-ExecStart=%h/MusiGuard/sentinella-spazio.sh
+ExecStart=%h/MusiGuard/scripts/sentinella-spazio.sh

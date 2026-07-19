@@ -7,4 +7,4 @@ Description=MusiGuard - pulizia automatica (Downloads, cestino, cache)
 
 [Service]
 Type=oneshot
-ExecStart=%h/MusiGuard/pulizia-automatica.sh
+ExecStart=%h/MusiGuard/scripts/pulizia-automatica.sh

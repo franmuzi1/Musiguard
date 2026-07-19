@@ -1,6 +1,6 @@
 #!/bin/bash
 # Setup una-tantum di privacy/sicurezza di rete. DA LANCIARE CON SUDO:
-#   sudo ~/MusiGuard/imposta-privacy-rete.sh
+#   sudo ~/MusiGuard/scripts/imposta-privacy-rete.sh
 # Cosa fa (idempotente, rilanciabile):
 #   1. Firewall ufw ATTIVATO DAVVERO : nega tutto in ingresso, con
 #      eccezioni per Syncthing e KDE Connect (protocolli autenticati).

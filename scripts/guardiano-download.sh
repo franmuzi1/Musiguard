@@ -6,7 +6,7 @@ DIR_PRE="${HOME}/PreDownload"
 DIR_DOWN="${HOME}/Downloads"
 
 # ---> MODIFICA QUESTI DUE PERCORSI <---
-SCRIPT_AV="${HOME}/MusiGuard/AntiVirusDIY.sh"
+SCRIPT_AV="${HOME}/MusiGuard/scripts/AntiVirusDIY.sh"
 LOG_ESTRAZIONI="${HOME}/MusiGuard/estrazioni.log"
 
 # Quarantena: i file sospetti finiscono qui, DENTRO PreDownload — così

@@ -84,7 +84,7 @@ sudo apt install -y clamav-daemon zstd
 ```bash
 git clone https://github.com/franmuzi1/Musiguard.git ~/MusiGuard
 cd ~/MusiGuard
-chmod +x *.sh
+chmod +x installa-servizio.sh scripts/*.sh
 ./installa-servizio.sh
 ```
 
@@ -94,7 +94,7 @@ Alla **prima installazione** parte il wizard: scegli quali moduli attivare. Il m
 
 ## ⚙️ Configurazione
 
-Riconfigurabile in qualsiasi momento con il wizard (`./configura.sh`) oppure a mano in `~/.config/musiguard.conf` — solo righe `CHIAVE=numero`, il file viene **letto e mai eseguito**. Dopo una modifica a mano: `systemctl --user restart musiguard-guardiano`.
+Riconfigurabile in qualsiasi momento con il wizard (`./scripts/configura.sh`) oppure a mano in `~/.config/musiguard.conf` — solo righe `CHIAVE=numero`, il file viene **letto e mai eseguito**. Dopo una modifica a mano: `systemctl --user restart musiguard-guardiano`.
 
 | Chiave | Default | Effetto |
 |---|:---:|---|
@@ -128,13 +128,13 @@ Attivo da subito, nessun riavvio necessario. **Privacy e limiti:** viaggia solo 
 
 ## 🌐 Bonus: privacy di rete
 
-Nel repo c'è anche `imposta-privacy-rete.sh`, un setup una-tantum (idempotente, rilanciabile) da eseguire con `sudo`:
+Nel repo c'è anche `scripts/imposta-privacy-rete.sh`, un setup una-tantum (idempotente, rilanciabile) da eseguire con `sudo`:
 
 - **Firewall ufw attivato davvero** — nega tutto in ingresso, con eccezioni per Syncthing e KDE Connect (protocolli autenticati). Configurato *prima* del DNS apposta: se la parte DNS fallisse, il firewall resta comunque su.
 - **DNS cifrato** — `systemd-resolved` (installato se manca) con **DNS-over-TLS rigoroso verso Quad9**, che blocca anche i domini malevoli noti.
 
 ```bash
-sudo ~/MusiGuard/imposta-privacy-rete.sh
+sudo ~/MusiGuard/scripts/imposta-privacy-rete.sh
 ```
 
 ## 📂 Struttura del progetto
@@ -146,21 +146,23 @@ sudo ~/MusiGuard/imposta-privacy-rete.sh
 
 ```
 MusiGuard/
-├── guardiano-download.sh          # Il demone in ascolto su ~/PreDownload
-├── AntiVirusDIY.sh                # Motore di scansione (MIME, nome, SHA256, ClamAV, VT)
-├── pulizia-automatica.sh          # Manutenzione: Downloads vecchi, cestino, cache
-├── sentinella-spazio.sh           # Avviso disco pieno coi 5 "pesi massimi" (non cancella)
-├── sincro-syncthing.sh            # Syncthing a orario: avvia, sincronizza, spegne
-├── imposta-privacy-rete.sh        # Una-tantum: firewall ufw + DNS-over-TLS (Quad9)
-├── configura.sh                   # Wizard di scelta dei moduli (primo avvio e on-demand)
-├── installa-servizio.sh           # Installa/aggiorna le unit systemd utente
-├── musiguard-guardiano.service    # Servizio del guardiano (Restart=on-failure)
-├── musiguard-pulizia.service      # Servizio oneshot della pulizia
-├── musiguard-pulizia.timer        # Timer giornaliero della pulizia
-├── musiguard-sentinella.service   # Servizio oneshot della sentinella disco
-├── musiguard-sentinella.timer     # Timer giornaliero della sentinella
-├── musiguard-sincro.service       # Servizio oneshot della sincro Syncthing
-└── musiguard-sincro.timer         # Timer della sincro (ogni sera alle 20)
+├── installa-servizio.sh               # ⭐ Punto d'ingresso: installa/aggiorna le unit systemd
+├── scripts/
+│   ├── guardiano-download.sh          # Il demone in ascolto su ~/PreDownload
+│   ├── AntiVirusDIY.sh                # Motore di scansione (MIME, nome, SHA256, ClamAV, VT)
+│   ├── pulizia-automatica.sh          # Manutenzione: Downloads vecchi, cestino, cache
+│   ├── sentinella-spazio.sh           # Avviso disco pieno coi 5 "pesi massimi" (non cancella)
+│   ├── sincro-syncthing.sh            # Syncthing a orario: avvia, sincronizza, spegne
+│   ├── imposta-privacy-rete.sh        # Una-tantum: ufw + DNS-over-TLS (Quad9) + MAC random
+│   └── configura.sh                   # Wizard di scelta dei moduli (primo avvio e on-demand)
+└── systemd/
+    ├── musiguard-guardiano.service    # Servizio del guardiano (Restart=on-failure)
+    ├── musiguard-pulizia.service      # Servizio oneshot della pulizia
+    ├── musiguard-pulizia.timer        # Timer giornaliero della pulizia
+    ├── musiguard-sentinella.service   # Servizio oneshot della sentinella disco
+    ├── musiguard-sentinella.timer     # Timer giornaliero della sentinella
+    ├── musiguard-sincro.service       # Servizio oneshot della sincro Syncthing
+    └── musiguard-sincro.timer         # Timer della sincro (ogni sera alle 20)
 ```
 
 </details>

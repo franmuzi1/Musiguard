@@ -21,7 +21,7 @@ StartLimitBurst=5
 [Service]
 Type=simple
 # %h = home dell'utente (le unit systemd non espandono ~ o $HOME).
-ExecStart=%h/MusiGuard/guardiano-download.sh
+ExecStart=%h/MusiGuard/scripts/guardiano-download.sh
 Restart=on-failure
 RestartSec=5
 # NB: il guardiano esce 0 se trova il lock già preso (altra istanza attiva):

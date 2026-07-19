@@ -7,7 +7,7 @@ Description=MusiGuard - sincro Syncthing giornaliera (avvia-sincronizza-spegni)
 
 [Service]
 Type=oneshot
-ExecStart=%h/MusiGuard/sincro-syncthing.sh
+ExecStart=%h/MusiGuard/scripts/sincro-syncthing.sh
 # La sincro può legittimamente durare fino a SINCRO_MAX_MINUTI (default 30)
 # più l'avvio: un po' di margine prima che systemd la consideri appesa.
 TimeoutStartSec=45min
