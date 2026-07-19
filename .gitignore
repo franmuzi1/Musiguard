@@ -6,3 +6,7 @@
 
 # Impostazioni locali di Claude Code (personali, non condivisibili).
 .claude/settings.local.json
+
+# Appunti personali per Marco: restano solo in locale, non sul repo pubblico.
+MARCO.txt
+ANTIVIRUS.txt
