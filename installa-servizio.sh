@@ -12,7 +12,7 @@ UNIT_DIR="${HOME}/.config/systemd/user"
 UNITS=(musiguard-guardiano.service musiguard-pulizia.service musiguard-pulizia.timer)
 UNITS_VECCHIE=(guardiano.service pulizia.timer pulizia.service)
 
-for U in "${UNITS[@]}"; do
+for U in "${UNITS[@]}" configura.sh; do
     if [ ! -f "$DIR_SRC/$U" ]; then
         echo "Errore: $DIR_SRC/$U non trovato." >&2
         exit 1
@@ -40,9 +40,34 @@ done
 mkdir -p "$UNIT_DIR"
 for U in "${UNITS[@]}"; do cp "$DIR_SRC/$U" "$UNIT_DIR/"; done
 systemctl --user daemon-reload
-systemctl --user enable musiguard-guardiano.service musiguard-pulizia.timer
-systemctl --user restart musiguard-guardiano.service
-systemctl --user start musiguard-pulizia.timer
+
+# PRIMO AVVIO: se il conf non esiste, parte il wizard di configurazione dei
+# moduli (scrive il conf e attiva/disattiva i servizi da solo). Nelle
+# installazioni successive si rilancia a mano con ./configura.sh.
+CONF="${HOME}/.config/musiguard.conf"
+if [ ! -f "$CONF" ]; then
+    "$DIR_SRC/configura.sh"
+fi
+
+# Applica le scelte dei moduli (default: tutto attivo).
+leggi() {
+    local V=""
+    [ -f "$CONF" ] && V=$(grep -E "^$1=[0-9]+$" "$CONF" | tail -n1 | cut -d= -f2)
+    echo "${V:-$2}"
+}
+if [ "$(leggi ATTIVA_GUARDIANO 1)" = 1 ]; then
+    systemctl --user enable musiguard-guardiano.service
+    systemctl --user restart musiguard-guardiano.service
+else
+    systemctl --user disable --now musiguard-guardiano.service 2>/dev/null || true
+    echo "Guardiano disattivato da configurazione (riattivabile con ./configura.sh)."
+fi
+if [ "$(leggi ATTIVA_PULIZIA 1)" = 1 ]; then
+    systemctl --user enable --now musiguard-pulizia.timer
+else
+    systemctl --user disable --now musiguard-pulizia.timer 2>/dev/null || true
+    echo "Pulizia giornaliera disattivata da configurazione."
+fi
 
 echo
 systemctl --user status musiguard-guardiano.service --no-pager || true

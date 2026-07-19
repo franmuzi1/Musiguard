@@ -9,11 +9,25 @@ DIR_DOWN="${HOME}/Downloads"
 SCRIPT_AV="${HOME}/MusiGuard/AntiVirusDIY.sh"
 LOG_ESTRAZIONI="${HOME}/MusiGuard/estrazioni.log"
 
-# FIX anti zip-bomb / disco pieno: tetto (in MB) alla dimensione DECOMPRESSA
+# Moduli e parametri da ~/.config/musiguard.conf (generato da configura.sh).
+# Il conf viene LETTO, mai eseguito: si accettano solo righe CHIAVE=numero.
+# Il file viene letto una volta all'avvio: dopo una riconfigurazione il
+# servizio va riavviato (configura.sh lo fa da solo).
+CONF="${HOME}/.config/musiguard.conf"
+leggi_conf() {
+    local V=""
+    [ -f "$CONF" ] && V=$(grep -E "^$1=[0-9]+$" "$CONF" | tail -n1 | cut -d= -f2)
+    echo "${V:-$2}"
+}
+# ESTRAI_ARCHIVI=0 lascia gli archivi compressi dove vengono smistati;
+# SMISTA_CATEGORIE=0 manda tutto in ~/Downloads senza dividere per tipo.
+ESTRAI_ARCHIVI=$(leggi_conf ESTRAI_ARCHIVI 1)
+SMISTA_CATEGORIE=$(leggi_conf SMISTA_CATEGORIE 1)
+# Anti zip-bomb / disco pieno: tetto (in MB) alla dimensione DECOMPRESSA
 # di un archivio estratto in automatico. Oltre questa soglia l'estrazione
 # viene rifiutata (zip/7z, che dichiarano il totale) o uccisa da ulimit
 # (formati che non lo dichiarano). L'archivio resta comunque sul disco.
-MAX_ESTRAZIONE_MB=10240
+MAX_ESTRAZIONE_MB=$(leggi_conf MAX_ESTRAZIONE_MB 10240)
 
 # FIX: lock anti-doppia-istanza. Col servizio systemd attivo, un guardiano
 # lanciato a mano (o un secondo avvio da cron/autostart dimenticato)
@@ -233,18 +247,28 @@ smista_file() {
         ESTENSIONE=$(tr '[:upper:]' '[:lower:]' <<< "${NOME_FILE##*.}")
     fi
 
-    local DESTINAZIONE="$DIR_DOWN"
+    # L'archivio va riconosciuto A PRESCINDERE dallo smistamento: anche con
+    # SMISTA_CATEGORIE=0 (tutto in Downloads) l'estrazione automatica, se
+    # attiva, deve funzionare lo stesso.
+    local E_ARCHIVIO=0
     case "$ESTENSIONE" in
-        pdf|doc|docx|txt|odt|rtf|xls|xlsx|csv) DESTINAZIONE="$DIR_DOCS" ;;
-        jpg|jpeg|png|gif|webp|svg) DESTINAZIONE="$DIR_IMG" ;;
-        mp4|mkv|avi|mov) DESTINAZIONE="$DIR_VID" ;;
-        mp3|wav|flac|m4a) DESTINAZIONE="$DIR_MUS" ;;
-        # FIX: aggiunti tgz e bz2 — prima foo.tgz e foo.tar.bz2 finivano in
-        # Downloads e non venivano mai estratti, benché l'estrattore li
-        # supportasse. Lista allineata ai formati gestiti da estrai_archivio.
-        zip|rar|7z|tar|gz|bz2|xz|zst|tgz) DESTINAZIONE="$DIR_ARCH" ;;
-        stl|obj|3mf) DESTINAZIONE="$DIR_3D" ;;
+        zip|rar|7z|tar|gz|bz2|xz|zst|tgz) E_ARCHIVIO=1 ;;
     esac
+
+    local DESTINAZIONE="$DIR_DOWN"
+    if [ "$SMISTA_CATEGORIE" = 1 ]; then
+        case "$ESTENSIONE" in
+            pdf|doc|docx|txt|odt|rtf|xls|xlsx|csv) DESTINAZIONE="$DIR_DOCS" ;;
+            jpg|jpeg|png|gif|webp|svg) DESTINAZIONE="$DIR_IMG" ;;
+            mp4|mkv|avi|mov) DESTINAZIONE="$DIR_VID" ;;
+            mp3|wav|flac|m4a) DESTINAZIONE="$DIR_MUS" ;;
+            # FIX: aggiunti tgz e bz2 — prima foo.tgz e foo.tar.bz2 finivano in
+            # Downloads e non venivano mai estratti, benché l'estrattore li
+            # supportasse. Lista allineata ai formati gestiti da estrai_archivio.
+            zip|rar|7z|tar|gz|bz2|xz|zst|tgz) DESTINAZIONE="$DIR_ARCH" ;;
+            stl|obj|3mf) DESTINAZIONE="$DIR_3D" ;;
+        esac
+    fi
 
     # FIX: mv nudo sovrascriveva silenziosamente un file omonimo già presente
     # nella destinazione. Ora, in caso di collisione, aggiunge un suffisso.
@@ -262,8 +286,10 @@ smista_file() {
         # aspetta l'eventuale click su "Apri cartella".
         notifica_ok "$NOME_FILE" "$DESTINAZIONE" &
 
-        # --- NUOVO: SE È UN ARCHIVIO, LO ESTRAE ---
-        if [ "$DESTINAZIONE" = "$DIR_ARCH" ]; then
+        # --- SE È UN ARCHIVIO (e il modulo è attivo), LO ESTRAE ---
+        # Si decide sull'estensione, non sulla destinazione: così funziona
+        # anche con lo smistamento per categorie disattivato.
+        if [ "$ESTRAI_ARCHIVI" = 1 ] && [ "$E_ARCHIVIO" = 1 ]; then
             estrai_archivio "$DEST_PATH"
         fi
     else

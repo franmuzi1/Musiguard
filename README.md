@@ -44,6 +44,7 @@ MusiGuard/
 ├── guardiano-download.sh          # Il demone in ascolto su ~/PreDownload
 ├── AntiVirusDIY.sh                # Motore di scansione (MIME, SHA256, ClamAV)
 ├── pulizia-automatica.sh          # Manutenzione: Downloads vecchi, cestino, cache
+├── configura.sh                   # Wizard di scelta dei moduli (primo avvio e on-demand)
 ├── installa-servizio.sh           # Installa/aggiorna le unit systemd utente
 ├── musiguard-guardiano.service    # Servizio del guardiano (Restart=on-failure)
 ├── musiguard-pulizia.service      # Servizio oneshot della pulizia
@@ -59,9 +60,15 @@ chmod +x *.sh
 ./installa-servizio.sh
 ```
 
+Alla **prima installazione** parte il wizard di configurazione: scegli quali moduli attivare (guardiano, pulizia giornaliera, verifica SHA, estrazione automatica, smistamento per categorie). Per riconfigurare in qualsiasi momento:
+
+```bash
+./configura.sh
+```
+
 Poi imposta il browser per scaricare in `~/PreDownload` anziché in `~/Downloads`.
 
-Configurazione opzionale in `~/.config/musiguard.conf` (solo righe `CHIAVE=valore`, il file non viene mai eseguito): `CHIEDI_SHA=0` disattiva il controllo SHA dagli appunti.
+Le scelte finiscono in `~/.config/musiguard.conf` (solo righe `CHIAVE=numero`, il file viene letto e mai eseguito): `ATTIVA_GUARDIANO`, `ATTIVA_PULIZIA`, `CHIEDI_SHA`, `ESTRAI_ARCHIVI`, `SMISTA_CATEGORIE`, `MAX_ESTRAZIONE_MB`. Modificabile anche a mano (dopo, riavvia il guardiano: `systemctl --user restart musiguard-guardiano`).
 
 Comandi utili:
 
