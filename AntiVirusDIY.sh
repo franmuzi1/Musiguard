@@ -24,41 +24,91 @@ if [ -f "$CONF" ]; then
     [ -n "$VALORE" ] && CHIEDI_SHA="$VALORE"
 fi
 
+# NUOVO: seconda opinione VirusTotal. Lookup del SOLO hash sull'API v3: il
+# file NON lascia mai il PC, viaggia una stringa di 64 caratteri. Con 70+
+# motori compensa il punto debole di ClamAV da solo. Si accende solo se:
+#   1) CONTROLLO_VT=1 nel conf (default: attivo), E
+#   2) esiste la chiave API (gratuita: virustotal.com -> profilo -> API key)
+#      in ~/.config/musiguard-vt.key (consigliato chmod 600).
+# Senza chiave il modulo è spento e non costa nulla. Del file chiave si
+# accetta SOLO una riga di 64 hex (stessa filosofia del conf: letto, mai
+# eseguito, formato rigido).
+CONTROLLO_VT=1
+if [ -f "$CONF" ]; then
+    VALORE=$(grep -E '^CONTROLLO_VT=[0-9]+$' "$CONF" | tail -n1 | cut -d= -f2)
+    [ -n "$VALORE" ] && CONTROLLO_VT="$VALORE"
+fi
+VT_KEYFILE="${HOME}/.config/musiguard-vt.key"
+VT_KEY=""
+if [ "$CONTROLLO_VT" = "1" ] && [ -f "$VT_KEYFILE" ] && command -v curl &>/dev/null; then
+    VT_KEY=$(grep -iE '^[a-f0-9]{64}$' "$VT_KEYFILE" | head -n1)
+fi
+
+# --- Controlli basati sull'hash (appunti + VirusTotal), in background ---
 # Verifica SHA dagli APPUNTI, senza alcun popup.
 # FIX: sostituisce il vecchio prompt yad/zenity (una finestra a OGNI download).
 # Se negli appunti c'e' gia' un SHA256 (64 caratteri esadecimali) copiato dal
 # sito del download, lo verifichiamo in automatico; se non c'e', si salta in
 # silenzio: nel caso normale non compare nulla e non si calcola nulla.
-# FIX: sha256sum viene calcolato SOLO se negli appunti c'e' un hash — prima
-# era in testa allo script e hashava ogni singolo file (costoso sui file
-# grossi) anche quando l'hash non serviva a nessuno.
+# FIX: sha256sum viene calcolato SOLO se serve a qualcuno (hash negli appunti
+# oppure modulo VirusTotal acceso) — e UNA volta sola per entrambi i controlli.
 # Struttura invariata: subshell in background -> tmpfile -> wait (join) piu'
-# avanti. Il confronto (sha256sum e' la parte lenta) gira in parallelo alle
-# altre verifiche; canali separati (file vs variabile) -> nessuna race.
+# avanti. I controlli sull'hash (sha256sum + eventuale richiesta di rete sono
+# le parti lente) girano in parallelo alle verifiche locali qui sotto; canali
+# separati (file vs variabile) -> nessuna race.
+# Esiti VirusTotal che NON sono rilevazioni (hash mai visto, rete assente,
+# rate limit del piano free: 4 richieste/min, chiave rifiutata): SILENZIO —
+# un guasto di rete non deve bloccare i download; resta la copertura ClamAV.
 # Strumento appunti della sessione:
 #   Wayland (tuo caso): sudo apt install wl-clipboard   -> comando: wl-paste
 #   X11:                sudo apt install xclip          -> comando: xclip -o -selection clipboard
-SHA_PID=""
-SHA_TMP=""
-if [ "$CHIEDI_SHA" = "1" ]; then
-SHA_TMP=$(mktemp)
+HASH_PID=""
+HASH_TMP=""
+if [ "$CHIEDI_SHA" = "1" ] || [ -n "$VT_KEY" ]; then
+HASH_TMP=$(mktemp)
 (
-    CLIP=""
-    if command -v wl-paste &>/dev/null; then
-        CLIP=$(wl-paste 2>/dev/null)
-    elif command -v xclip &>/dev/null; then
-        CLIP=$(xclip -o -selection clipboard 2>/dev/null)
+    HASH_ATTESO=""
+    if [ "$CHIEDI_SHA" = "1" ]; then
+        CLIP=""
+        if command -v wl-paste &>/dev/null; then
+            CLIP=$(wl-paste 2>/dev/null)
+        elif command -v xclip &>/dev/null; then
+            CLIP=$(xclip -o -selection clipboard 2>/dev/null)
+        fi
+        # Prima sequenza di 64 hex trovata negli appunti, normalizzata minuscola.
+        HASH_ATTESO=$(grep -ioE '[a-f0-9]{64}' <<< "$CLIP" | head -n1 | tr '[:upper:]' '[:lower:]')
     fi
-    # Prima sequenza di 64 hex trovata negli appunti, normalizzata minuscola.
-    HASH_ATTESO=$(grep -ioE '[a-f0-9]{64}' <<< "$CLIP" | head -n1 | tr '[:upper:]' '[:lower:]')
-    if [ -n "$HASH_ATTESO" ]; then
+    HASH_CALCOLATO=""
+    if [ -n "$HASH_ATTESO" ] || [ -n "$VT_KEY" ]; then
         HASH_CALCOLATO=$(sha256sum "$FILE" | awk '{print $1}')
-        if [ "$HASH_CALCOLATO" != "$HASH_ATTESO" ]; then
-            printf '%s' "❌ SHA256 NON CORRISPONDE (hash preso dagli APPUNTI): il file potrebbe essere alterato — oppure l'hash copiato si riferisce a un ALTRO file (falso positivo possibile, controlla cosa avevi negli appunti).\n   Calcolato: $HASH_CALCOLATO\n   Atteso (appunti): $HASH_ATTESO\n\n" > "$SHA_TMP"
+    fi
+    if [ -n "$HASH_ATTESO" ] && [ "$HASH_CALCOLATO" != "$HASH_ATTESO" ]; then
+        printf '%s' "❌ SHA256 NON CORRISPONDE (hash preso dagli APPUNTI): il file potrebbe essere alterato — oppure l'hash copiato si riferisce a un ALTRO file (falso positivo possibile, controlla cosa avevi negli appunti).\n   Calcolato: $HASH_CALCOLATO\n   Atteso (appunti): $HASH_ATTESO\n\n" >> "$HASH_TMP"
+    fi
+    if [ -n "$VT_KEY" ]; then
+        # curl -f: su 404 (hash sconosciuto) e 4xx/5xx il body resta vuoto e
+        # il parsing sotto non trova nulla -> silenzio, come da politica.
+        # --max-time 15: una rete che pende non deve fermare la coda download.
+        RISPOSTA=$(curl -sf --max-time 15 -H "x-apikey: $VT_KEY" \
+            "https://www.virustotal.com/api/v3/files/$HASH_CALCOLATO" 2>/dev/null)
+        if command -v jq &>/dev/null; then
+            VT_MAL=$(jq -r '.data.attributes.last_analysis_stats.malicious // ""' <<< "$RISPOSTA" 2>/dev/null)
+            VT_SUS=$(jq -r '.data.attributes.last_analysis_stats.suspicious // ""' <<< "$RISPOSTA" 2>/dev/null)
+        else
+            # Fallback senza jq: il blocco last_analysis_stats è piatto
+            # ({"malicious":N,...}), si estrae con grep dopo aver tolto spazi.
+            STATS=$(tr -d ' \n' <<< "$RISPOSTA" | grep -oE '"last_analysis_stats":\{[^}]*\}' | head -n1)
+            VT_MAL=$(grep -oE '"malicious":[0-9]+' <<< "$STATS" | head -n1 | cut -d: -f2)
+            VT_SUS=$(grep -oE '"suspicious":[0-9]+' <<< "$STATS" | head -n1 | cut -d: -f2)
+        fi
+        [[ "${VT_MAL:-}" =~ ^[0-9]+$ ]] || VT_MAL=0
+        [[ "${VT_SUS:-}" =~ ^[0-9]+$ ]] || VT_SUS=0
+        if [ "$VT_MAL" -gt 0 ] || [ "$VT_SUS" -gt 0 ]; then
+            printf '%s' "☣️ VIRUSTOTAL: questo file è segnalato da $VT_MAL motori antivirus come MALEVOLO e da $VT_SUS come sospetto (verificato il solo hash, il file non è stato inviato).\n   Dettagli: https://www.virustotal.com/gui/file/$HASH_CALCOLATO\n\n" >> "$HASH_TMP"
         fi
     fi
 ) &
-SHA_PID=$!
+HASH_PID=$!
 fi
 
 # --- Verifiche che partono SUBITO, in parallelo al controllo appunti SHA ---
@@ -112,12 +162,12 @@ elif [ "$CLAM_RC" -ge 2 ]; then
     PROBLEMI+="⚠️ ERRORE CLAMAV (scansione non riuscita):\n$CLAM_OUT\n\n"
 fi
 
-# --- Join: aspetta il controllo appunti SHA e raccogli l'esito ---
-# (saltato in blocco se CHIEDI_SHA=0: nessun processo da aspettare)
-if [ -n "$SHA_PID" ]; then
-    wait "$SHA_PID"
-    if [ -s "$SHA_TMP" ]; then PROBLEMI+="$(cat "$SHA_TMP")"; fi
-    rm -f "$SHA_TMP"
+# --- Join: aspetta i controlli basati sull'hash e raccogli l'esito ---
+# (saltato in blocco se appunti SHA e VirusTotal sono entrambi spenti)
+if [ -n "$HASH_PID" ]; then
+    wait "$HASH_PID"
+    if [ -s "$HASH_TMP" ]; then PROBLEMI+="$(cat "$HASH_TMP")"; fi
+    rm -f "$HASH_TMP"
 fi
 
 if [ -n "$PROBLEMI" ]; then echo -e "Sono state rilevate anomalie:\n\n$PROBLEMI"; exit 1; else exit 0; fi
