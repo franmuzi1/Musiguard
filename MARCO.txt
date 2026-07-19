@@ -4,7 +4,6 @@ suggeritore e tilix
 
 sudo apt update && sudo apt install -y tilix zsh zsh-autosuggestions zsh-syntax-highlighting && chsh -s $(which zsh) $USER && touch ~/.zshrc && echo -e "\nsource /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh\nsource /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" >> ~/.zshrc && echo -e "\n\n[✓] Installazione completata! Chiudi questo terminale e apri TILIX."
 
-correttore e comp avanzato
 
 
 
@@ -33,43 +32,9 @@ keypass
 sudo apt install keepassxc -y
 
 
-ANTIVIRUS DIY (MusiGuard):
-# Gli script NON si ricreano a mano: le versioni buone sono nel repo dotfiles
-# (cartella MusiGuard/ + unit in .config/systemd/user/). Questa ricetta li installa.
-# NOTA: la cartella è ~/PreDownload SENZA trattino. Imposta il browser per
-# scaricare lì. NON cestinare mai ~/pre_download_disk.img: è il disco sandbox.
+ANTIVIRUS (MusiGuard):
 
-# 0. Dipendenze
-sudo apt update && sudo apt install -y inotify-tools zenity clamav trash-cli
-
-# 1. Crea la cartella quarantena e il disco elastico da 50GB
-mkdir -p ~/PreDownload
-truncate -s 50G ~/pre_download_disk.img
-/sbin/mkfs.ext4 -F ~/pre_download_disk.img
-
-# 2. Montaggio sicuro: noexec/nosuid/nodev (niente esecuzione dalla quarantena),
-# nofail (se l'immagine manca il boot NON si blocca in emergency mode)
-sudo sed -i '\|pre_download_disk.img|d' /etc/fstab
-echo "$HOME/pre_download_disk.img $HOME/PreDownload ext4 loop,rw,nofail,noexec,nosuid,nodev,data=ordered,errors=remount-ro,discard 0 2" | sudo tee -a /etc/fstab > /dev/null
-sudo systemctl daemon-reload
-sudo mount ~/PreDownload
-sudo chown $USER:$USER ~/PreDownload
-
-# 3. Installa gli script dal repo dotfiles
-mkdir -p ~/MusiGuard
-cp ~/I-Miei-Dotfiles/MusiGuard/*.sh ~/MusiGuard/
-chmod +x ~/MusiGuard/*.sh
-
-# 4. Installa e avvia i servizi systemd user
-# (NIENTE autostart .desktop: faceva partire un secondo guardiano doppione)
-mkdir -p ~/.config/systemd/user
-cp ~/I-Miei-Dotfiles/.config/systemd/user/guardiano.service ~/.config/systemd/user/
-cp ~/I-Miei-Dotfiles/.config/systemd/user/pulizia.service ~/.config/systemd/user/
-cp ~/I-Miei-Dotfiles/.config/systemd/user/pulizia.timer ~/.config/systemd/user/
-systemctl --user daemon-reload
-systemctl --user enable --now guardiano.service pulizia.timer
-
-echo "[✓] Installazione completata! Il Guardiano sorveglia ~/PreDownload."
+vedi ANTIVIRUS.txt — ricetta completa con spiegazione
 
 
 

@@ -3,6 +3,12 @@ DIR_PRE="${HOME}/PreDownload"
 DIR_DOWN="${HOME}/Downloads"
 SCRIPT_AV="${HOME}/MusiGuard/AntiVirusDIY.sh"
 
+# Interruttori opzionali da ~/.config/musiguard.conf (se il file manca,
+# tutto resta attivo): SMISTAMENTO=0 manda ogni file sicuro dritto in
+# Downloads senza smistarlo per tipo.
+SMISTAMENTO=1
+[ -f "${HOME}/.config/musiguard.conf" ] && . "${HOME}/.config/musiguard.conf"
+
 # FIX: se lo script antivirus manca, prima ogni file veniva marcato "sospetto"
 # con un messaggio incomprensibile. Meglio fallire subito e chiaramente.
 if [ ! -x "$SCRIPT_AV" ]; then
@@ -25,6 +31,31 @@ DIR_3D="$(xdg-user-dir DOCUMENTS 2>/dev/null || echo "${HOME}/Documents")/3d Pri
 # FIX: aggiunta DIR_PRE — se non esiste, inotifywait termina subito con errore.
 mkdir -p "$DIR_PRE" "$DIR_DOWN" "$DIR_DOCS" "$DIR_IMG" "$DIR_VID" "$DIR_MUS" "$DIR_ARCH" "$DIR_3D"
 
+# Notifica "file a posto": cliccando sul corpo della notifica apre la
+# cartella di destinazione col file manager. Usa notify-send (libnotify)
+# perché zenity --notification non gestisce i click. La chiave azione
+# "default" è la convenzione libnotify per l'attivazione con UN click sul
+# corpo (niente pulsante da espandere). L'hint transient (-h int:transient:1)
+# impedisce a GNOME di lasciare una copia nel centro notifiche: resta solo il
+# banner, così non compaiono due notifiche. -t 5000 = durata banner 5s.
+# notify-send resta in attesa e stampa la chiave premuta; per questo va
+# chiamata in background (vedi "&" sotto), così non blocca i file successivi.
+notifica_ok() {
+    local NOME="$1" CARTELLA="$2"
+    if command -v notify-send &>/dev/null; then
+        local AZIONE
+        AZIONE=$(notify-send --app-name="MusiGuard" --icon=folder-download \
+            -h int:transient:1 -t 5000 \
+            -A "default=Apri cartella" \
+            "✅ $NOME è sicuro" \
+            "Ordinato in: ${CARTELLA#"$HOME"/}" 2>/dev/null)
+        [ "$AZIONE" = "default" ] && xdg-open "$CARTELLA" &>/dev/null
+    else
+        # Fallback se libnotify manca: notifica passiva, senza click.
+        zenity --notification --text="✅ $NOME è sicuro.\n📂 ${CARTELLA#"$HOME"/}" 2>/dev/null
+    fi
+}
+
 smista_file() {
     local FILE_DA_SMISTARE="$1"
     local NOME_FILE
@@ -37,6 +68,7 @@ smista_file() {
     fi
 
     local DESTINAZIONE="$DIR_DOWN"
+    if [ "$SMISTAMENTO" = "1" ]; then
     case "$ESTENSIONE" in
         pdf|doc|docx|txt|odt|rtf|xls|xlsx|csv) DESTINAZIONE="$DIR_DOCS" ;;
         jpg|jpeg|png|gif|webp|svg) DESTINAZIONE="$DIR_IMG" ;;
@@ -45,6 +77,7 @@ smista_file() {
         zip|rar|7z|tar|gz|xz|zst) DESTINAZIONE="$DIR_ARCH" ;;
         stl|obj|3mf) DESTINAZIONE="$DIR_3D" ;;
     esac
+    fi
 
     # FIX: mv nudo sovrascriveva silenziosamente un file omonimo già presente
     # nella destinazione. Ora, in caso di collisione, aggiunge un suffisso.
@@ -58,10 +91,9 @@ smista_file() {
     fi
 
     if mv "$FILE_DA_SMISTARE" "$DEST_PATH"; then
-        # "${DESTINAZIONE#"$HOME"/}" toglie il prefisso $HOME/ dal path:
-        # la notifica mostra "Pictures/Downloads" invece del path assoluto
-        # (col solo basename direbbe sempre "Downloads", inutile).
-        zenity --notification --text="✅ $NOME_FILE è sicuro. 📂 Ordinato in: ${DESTINAZIONE#"$HOME"/}" 2>/dev/null
+        # In background (&) per non fermare il ciclo mentre la notifica
+        # aspetta l'eventuale click su "Apri cartella".
+        notifica_ok "$NOME_FILE" "$DESTINAZIONE" &
     else
         zenity --error --text="Impossibile spostare $NOME_FILE in $DESTINAZIONE" 2>/dev/null
     fi
