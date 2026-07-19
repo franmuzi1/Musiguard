@@ -19,7 +19,7 @@ smista i file puliti nella cartella giusta e ti disturba solo quando serve davve
 
 ## 🗺️ Come funziona
 
-Il browser scarica in `~/PreDownload` (idealmente un volume separato montato `noexec`: nulla può essere eseguito da lì, nemmeno per sbaglio). Da quel momento fa tutto MusiGuard, in background:
+Il browser scarica in `~/PreDownload` (idealmente un volume separato montato `noexec`: nulla può essere eseguito da lì, nemmeno per sbaglio — lo crea per te lo script opzionale `crea-disco-predownload.sh`, vedi installazione). Da quel momento fa tutto MusiGuard, in background:
 
 ```mermaid
 flowchart LR
@@ -92,6 +92,15 @@ Alla **prima installazione** parte il wizard: scegli quali moduli attivare. Il m
 
 **3. Punta il browser su `~/PreDownload`** al posto di `~/Downloads`. Fatto. 🎉
 
+**4. *(Opzionale, consigliato)* Disco elastico `noexec`** — trasforma `~/PreDownload` in un volume separato dove nulla può essere eseguito, nemmeno per sbaglio: un file immagine sparso (50GB *virtuali*: sul disco vero occupa solo lo spazio dei file davvero presenti) montato con `noexec,nosuid,nodev` a ogni avvio. Idempotente e rilanciabile; l'immagine esistente non viene mai riformattata.
+
+```bash
+sudo ~/MusiGuard/scripts/crea-disco-predownload.sh        # default 50GB
+sudo ~/MusiGuard/scripts/crea-disco-predownload.sh 100    # dimensione a scelta
+```
+
+> Non spostare e non cestinare mai `~/pre_download_disk.img`: è il disco della quarantena.
+
 ## ⚙️ Configurazione
 
 Riconfigurabile in qualsiasi momento con il wizard (`./scripts/configura.sh`) oppure a mano in `~/.config/musiguard.conf` — solo righe `CHIAVE=numero`, il file viene **letto e mai eseguito**. Dopo una modifica a mano: `systemctl --user restart musiguard-guardiano`.
@@ -154,6 +163,7 @@ MusiGuard/
 │   ├── sentinella-spazio.sh           # Avviso disco pieno coi 5 "pesi massimi" (non cancella)
 │   ├── sincro-syncthing.sh            # Syncthing a orario: avvia, sincronizza, spegne
 │   ├── imposta-privacy-rete.sh        # Una-tantum: ufw + DNS-over-TLS (Quad9) + MAC random
+│   ├── crea-disco-predownload.sh      # Opzionale: disco elastico noexec per ~/PreDownload
 │   └── configura.sh                   # Wizard di scelta dei moduli (primo avvio e on-demand)
 └── systemd/
     ├── musiguard-guardiano.service    # Servizio del guardiano (Restart=on-failure)
