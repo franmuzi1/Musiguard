@@ -9,6 +9,13 @@ DIR_DOWN="${HOME}/Downloads"
 SCRIPT_AV="${HOME}/MusiGuard/AntiVirusDIY.sh"
 LOG_ESTRAZIONI="${HOME}/MusiGuard/estrazioni.log"
 
+# Quarantena: i file sospetti finiscono qui, DENTRO PreDownload — così
+# restano sul volume montato noexec (non eseguibili nemmeno per sbaglio),
+# spariscono dalla vista del file manager (cartella nascosta) e dagli
+# eventi di inotify (il watch non è ricorsivo). Il log tiene il motivo.
+DIR_QUARANTENA="${DIR_PRE}/.Quarantena"
+LOG_QUARANTENA="${HOME}/MusiGuard/quarantena.log"
+
 # Moduli e parametri da ~/.config/musiguard.conf (generato da configura.sh).
 # Il conf viene LETTO, mai eseguito: si accettano solo righe CHIAVE=numero.
 # Il file viene letto una volta all'avvio: dopo una riconfigurazione il
@@ -388,29 +395,54 @@ do
     if [ "$IS_SAFE" -eq 0 ]; then
         smista_file "$FILE_PATH"
     else
-        # FIX: --text di zenity è markup Pango: se l'output di ClamAV o il
-        # nome file contiene < > &, zenity fallisce -> SCELTA vuota -> caso *)
-        # (file isolato in silenzio senza mostrare nulla). Escapiamo prima.
-        RISULTATO_ESC=$(escape_markup "$RISULTATO_AV")
-        # FIX: < /dev/null — siamo dentro un "while read" alimentato dalla
-        # pipe di inotifywait: un comando che legge stdin ruberebbe eventi
-        # alla pipe. Regola difensiva per ogni dialog dentro il loop.
-        SCELTA=$(zenity --list --title="⚠️ Attenzione: File Sospetto" \
-            --text="<b>Problemi rilevati:</b>\n\n$RISULTATO_ESC\n\n<b>Cosa facciamo?</b>" \
-            --column="ID" --column="Azione" --hide-column=1 \
-            1 "🗑️ 1. Elimina" \
-            2 "🛡️ 2. Lascia isolato in Pre-Download" \
-            3 "⚠️ 3. Ignora rischio e Smista" \
-            --width=500 --height=350 < /dev/null 2>/dev/null)
-        # FIX: quirk noto di zenity --list: col DOPPIO click sulla riga il
-        # valore torna duplicato con separatore pipe ("1|1"). Prima nessun
-        # caso matchava -> ramo *) -> file isolato ignorando la scelta
-        # esplicita dell'utente. ${SCELTA%%|*} tiene solo il primo campo.
-        case "${SCELTA%%|*}" in
-            1) rm -f "$FILE_PATH"; zenity --notification --text="🗑️ File $FILENAME eliminato." 2>/dev/null ;;
-            2) zenity --notification --text="🛡️ File $FILENAME isolato." 2>/dev/null ;;
-            3) smista_file "$FILE_PATH"; zenity --warning --text="⚠️ $(escape_markup "$FILENAME") smistato (Rischio ignorato)." < /dev/null 2>/dev/null ;;
-            *) zenity --notification --text="Azione annullata. File isolato in Pre-Download." 2>/dev/null ;;
-        esac
+        # QUARANTENA VERA. Prima il sospetto restava sciolto in PreDownload:
+        # riapribile per sbaglio dal file manager e rimesso in coda a ogni
+        # evento. Ora va SUBITO in .Quarantena/ con chmod 000 (nessuna app
+        # lo apre più; il proprietario può comunque eliminarlo/ripristinarlo)
+        # e la domanda all'utente arriva DOPO, senza bloccare la coda.
+        mkdir -p "$DIR_QUARANTENA"
+        DEST_Q="$DIR_QUARANTENA/$FILENAME"
+        if [ -e "$DEST_Q" ]; then
+            BASE_Q="${FILENAME%.*}"; EXT_Q=""
+            [[ "$FILENAME" == *.* ]] && EXT_Q=".${FILENAME##*.}"
+            N=1
+            while [ -e "$DIR_QUARANTENA/${BASE_Q} ($N)$EXT_Q" ]; do N=$((N+1)); done
+            DEST_Q="$DIR_QUARANTENA/${BASE_Q} ($N)$EXT_Q"
+        fi
+        if ! mv "$FILE_PATH" "$DEST_Q"; then
+            zenity --error --text="Impossibile mettere in quarantena $(escape_markup "$FILENAME")" < /dev/null 2>/dev/null
+            continue
+        fi
+        chmod 000 "$DEST_Q"
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] ☣️ IN QUARANTENA: $(basename "$DEST_Q") | Motivo: $(tr '\n' ' ' <<< "$RISULTATO_AV")" >> "$LOG_QUARANTENA"
+
+        # Dialog NON bloccante: la scelta vive in una subshell in background.
+        # Il file è GIÀ al sicuro in quarantena, quindi un dialogo ignorato
+        # per ore non ferma più i download successivi (prima il loop restava
+        # appeso qui). FIX ereditati e ancora validi: escaping Pango sul
+        # testo, < /dev/null per non rubare stdin alla pipe di inotifywait,
+        # ${SCELTA%%|*} per il quirk del doppio click di zenity --list.
+        (
+            exec 9>&-   # il lock non va trattenuto da un dialogo aperto a lungo
+            RISULTATO_ESC=$(escape_markup "$RISULTATO_AV")
+            SCELTA=$(zenity --list --title="⚠️ Attenzione: File Sospetto" \
+                --text="<b>$(escape_markup "$FILENAME")</b> è stato messo in QUARANTENA (PreDownload/.Quarantena).\n\n<b>Problemi rilevati:</b>\n\n$RISULTATO_ESC\n\n<b>Cosa facciamo?</b>" \
+                --column="ID" --column="Azione" --hide-column=1 \
+                1 "🗑️ 1. Elimina definitivamente" \
+                2 "🛡️ 2. Lascia in quarantena" \
+                3 "⚠️ 3. Ignora il rischio e Smista" \
+                --width=520 --height=360 < /dev/null 2>/dev/null)
+            case "${SCELTA%%|*}" in
+                1) rm -f "$DEST_Q"
+                   echo "[$(date '+%Y-%m-%d %H:%M:%S')] 🗑️ Eliminato dall'utente: $(basename "$DEST_Q")" >> "$LOG_QUARANTENA"
+                   zenity --notification --text="🗑️ File $FILENAME eliminato." 2>/dev/null ;;
+                3) chmod 644 "$DEST_Q"
+                   echo "[$(date '+%Y-%m-%d %H:%M:%S')] ⚠️ Rischio ignorato dall'utente, smistato: $(basename "$DEST_Q")" >> "$LOG_QUARANTENA"
+                   smista_file "$DEST_Q"
+                   zenity --warning --text="⚠️ $(escape_markup "$FILENAME") smistato (Rischio ignorato)." < /dev/null 2>/dev/null ;;
+                *) # Scelta 2, dialogo chiuso, o zenity assente: resta dov'è.
+                   zenity --notification --text="🛡️ $FILENAME resta in quarantena." 2>/dev/null ;;
+            esac
+        ) &
     fi
 done

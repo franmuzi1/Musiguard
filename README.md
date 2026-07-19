@@ -9,7 +9,9 @@ Tutto avviene in modo asincrono in background, con notifiche desktop solo quando
 *   🛡️ **Sicurezza Multi-Livello:**
     *   **Controllo MIME vs Estensione:** rileva eseguibili nascosti — sia Linux (ELF/script) sia **Windows (PE)** — camuffati da `.pdf`, `.jpg`, ecc.
     *   **Verifica SHA256 dagli appunti:** se hai copiato l'hash dal sito del download, viene confrontato in automatico. Niente popup: se negli appunti non c'è un hash, non succede (e non si calcola) nulla.
-    *   **Scansione ClamAV:** usa `clamdscan` (istantaneo, firme in memoria) se il demone è installato, altrimenti `clamscan`. In caso di minaccia il file viene isolato e ti viene chiesto come procedere.
+    *   **Anti-spoofing del nome:** doppie estensioni ingannevoli (`fattura.pdf.exe`, spazi di riempimento inclusi) e caratteri Unicode invisibili/direzionali (trucco RTLO che inverte il nome mostrato).
+    *   **Scansione ClamAV:** usa `clamdscan` (istantaneo, firme in memoria) se il demone è installato, altrimenti `clamscan`.
+    *   **Quarantena vera:** il file sospetto va subito in `~/PreDownload/.Quarantena` (sul volume `noexec`: non eseguibile nemmeno per sbaglio) con permessi `000` e motivo registrato in `quarantena.log`. La finestra di scelta (elimina / lascia / ignora e smista) arriva dopo, **senza bloccare** i download successivi.
     *   **Seconda opinione VirusTotal (opzionale):** lookup del **solo hash SHA256** sull'API di VirusTotal — il file non lascia mai il PC. 70+ motori antivirus dove ClamAV da solo arriva corto. Serve una chiave API gratuita in `~/.config/musiguard-vt.key`; senza chiave (o senza rete) il modulo tace e non blocca nulla.
 *   📂 **Smistamento per estensione:** riconosce il tipo di file e lo sposta nella cartella giusta (Documenti, Immagini, Video, Musica, Archivi, Stampa 3D), gestendo le collisioni di nomi con suffissi `(1)`, `(2)`, … Modulo opzionale: senza, l'antivirus controlla i file e li lascia in `~/Downloads`.
 *   📦 **Estrazione Automatica & Sicura:** archivi (`zip`, `tar.*`, `tgz`, `rar`, `7z`) e compressi singoli (`gz`, `bz2`, `xz`, `zst`) estratti in background in sottocartelle dedicate, con protezione **anti zip-bomb** (limite sulla dimensione decompressa, `MAX_ESTRAZIONE_MB`). A estrazione riuscita l'archivio originale viene eliminato.
@@ -23,7 +25,7 @@ Tutto avviene in modo asincrono in background, con notifiche desktop solo quando
 1. **PreDownload:** il browser salva i file in `~/PreDownload` (idealmente un volume separato montato `noexec`: niente può essere eseguito dalla quarantena). Un demone in ascolto (`inotifywait`) rileva l'arrivo.
 2. **Attesa stabilità:** si procede solo quando il file ha smesso di crescere.
 3. **Analisi:** `AntiVirusDIY.sh` controlla MIME, SHA256 (dagli appunti), ClamAV e — se configurato — VirusTotal (solo hash).
-4. **Smistamento:** il file sicuro viene spostato nella categoria adeguata; quello sospetto resta in quarantena finché non decidi tu.
+4. **Smistamento:** il file sicuro viene spostato nella categoria adeguata; quello sospetto finisce in `.Quarantena` (permessi `000`, motivo nel log) e la scelta su cosa farne non blocca la coda.
 5. **Post-Elaborazione:** se è un archivio, parte l'estrazione in background (con limiti anti-bomba).
 6. **Notifica:** UNA sola notifica per file, con click per aprire la cartella dove è finito (per gli archivi: direttamente la cartella estratta).
 
@@ -90,5 +92,7 @@ Comandi utili:
 journalctl --user -u musiguard-guardiano -f     # log del guardiano in diretta
 systemctl --user list-timers musiguard-pulizia.timer
 cat ~/MusiGuard/estrazioni.log                  # esiti delle estrazioni
+cat ~/MusiGuard/quarantena.log                  # storia della quarantena (file e motivi)
+ls -la ~/PreDownload/.Quarantena                # cosa c'è in quarantena adesso
 ```
 
