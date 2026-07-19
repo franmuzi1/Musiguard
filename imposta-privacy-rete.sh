@@ -2,15 +2,16 @@
 # Setup una-tantum di privacy/sicurezza di rete. DA LANCIARE CON SUDO:
 #   sudo ~/MusiGuard/imposta-privacy-rete.sh
 # Cosa fa (idempotente, rilanciabile):
-#   1. Firewall ufw ATTIVATO DAVVERO (il servizio era enabled ma ufw.conf
-#      diceva ENABLED=no: girava a vuoto): nega tutto in ingresso, con
+#   1. Firewall ufw ATTIVATO DAVVERO : nega tutto in ingresso, con
 #      eccezioni per Syncthing e KDE Connect (protocolli autenticati).
 #   2. DNS cifrato: systemd-resolved (INSTALLANDOLO se manca: su Debian 13
-#      è un pacchetto a parte — la prima versione di questo script moriva
-#      qui) con DNS-over-TLS verso Quad9.
+#      è un pacchetto a parte ) con DNS-over-TLS verso Quad9.
+#   3. MAC randomization via NetworkManager: MAC casuale a ogni scansione
+#      wifi e a ogni connessione (wifi ed ethernet).
 # Il firewall sta PRIMA del DNS apposta: se la parte DNS fallisse (niente
-# rete, mirror giù), il firewall resta comunque configurato.
-# NON tocca il MAC randomization: già configurato in NetworkManager.conf.
+# rete, mirror giù), il firewall resta comunque configurato. Il MAC sta
+# per ULTIMO: il nuovo MAC vale dalla prossima riconnessione, e non deve
+# rischiare di staccare la rete mentre apt scarica systemd-resolved.
 set -eu
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -18,7 +19,7 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-echo "== 1/2 Firewall ufw =="
+echo "== 1/3 Firewall ufw =="
 ufw default deny incoming
 ufw default allow outgoing
 # Syncthing: trasferimenti (22000) e scoperta locale (21027).
@@ -32,7 +33,7 @@ ufw --force enable
 ufw status verbose
 
 echo
-echo "== 2/2 DNS cifrato (DoT verso Quad9) =="
+echo "== 2/3 DNS cifrato (DoT verso Quad9) =="
 # La configurazione va scritta PRIMA di installare/avviare il servizio,
 # così al primo avvio parte già cifrato.
 mkdir -p /etc/systemd/resolved.conf.d
@@ -58,5 +59,32 @@ sleep 2
 resolvectl status | grep -E 'DNS Servers|DNSOverTLS|Protocols' | head -6 || true
 
 echo
+echo "== 3/3 MAC randomization (NetworkManager) =="
+# Drop-in in conf.d: non tocca NetworkManager.conf né eventuali config già
+# presenti (se le stesse chiavi ci sono altrove, vince l'ultimo file letto;
+# i valori qui sono comunque quelli "giusti", quindi nessun conflitto).
+# random = MAC nuovo a ogni connessione. Se una rete (es. filtro MAC del
+# router, wifi università) smette di funzionare, per quella singola rete:
+#   nmcli connection modify "NOME_RETE" wifi.cloned-mac-address stable
+if command -v nmcli &>/dev/null; then
+    mkdir -p /etc/NetworkManager/conf.d
+    cat > /etc/NetworkManager/conf.d/30-mac-random.conf <<'EOF'
+# MAC casuale nelle scansioni wifi (anti-tracciamento nei luoghi pubblici)
+# e a ogni connessione, wifi ed ethernet.
+[device]
+wifi.scan-rand-mac-address=yes
+
+[connection]
+wifi.cloned-mac-address=random
+ethernet.cloned-mac-address=random
+EOF
+    systemctl reload NetworkManager
+    echo "MAC randomization attiva (vale dalla prossima riconnessione)."
+else
+    echo "NetworkManager non trovato: salto la MAC randomization."
+fi
+
+echo
 echo "Fatto. Verifica DNS cifrato: resolvectl query anthropic.com"
 echo "e controlla sopra che compaia DNSOverTLS=yes."
+echo "Verifica MAC (dopo una riconnessione): ip link show"
