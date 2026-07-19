@@ -29,6 +29,15 @@ SMISTA_ESTENSIONE=$(leggi_conf SMISTA_ESTENSIONE "$(leggi_conf SMISTA_CATEGORIE 
 # viene rifiutata (zip/7z, che dichiarano il totale) o uccisa da ulimit
 # (formati che non lo dichiarano). L'archivio resta comunque sul disco.
 MAX_ESTRAZIONE_MB=$(leggi_conf MAX_ESTRAZIONE_MB 10240)
+# Privacy: PULISCI_METADATI=1 toglie i metadati traccianti (GPS, autore,
+# software) da foto e PDF appena smistati. Richiede exiftool: se manca, il
+# modulo si spegne da solo con UN avviso nel log, invece di fallire (o
+# tacere) su ogni singolo file.
+PULISCI_METADATI=$(leggi_conf PULISCI_METADATI 1)
+if [ "$PULISCI_METADATI" = 1 ] && ! command -v exiftool &>/dev/null; then
+    PULISCI_METADATI=0
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ⚠️ Pulizia metadati attiva nel conf ma exiftool non è installato: modulo disattivato (apt install libimage-exiftool-perl)." >> "$LOG_ESTRAZIONI"
+fi
 
 # FIX: lock anti-doppia-istanza. Col servizio systemd attivo, un guardiano
 # lanciato a mano (o un secondo avvio da cron/autostart dimenticato)
@@ -245,6 +254,28 @@ estrai_archivio() {
     ) &
 }
 
+# Privacy: rimuove i metadati dal file smistato. SOLO formati che exiftool
+# sa riscrivere: i documenti Office (docx/xlsx/pptx) per exiftool sono di
+# sola lettura e vanno esclusi, gli archivi non c'entrano. Si conservano
+# Orientation e profilo ICC (-tagsfromfile @): senza, le foto scattate in
+# verticale tornano sdraiate e i colori possono cambiare. Va chiamata DOPO
+# l'antivirus (i metadati possono essere parte della rilevazione) e con
+# -overwrite_original per non lasciare copie "_original" sporche accanto
+# al file pulito. Se exiftool fallisce il file resta intatto: meglio un
+# file con metadati che un file corrotto.
+pulisci_metadati() {
+    local FILE="$1" EST="$2"
+    case "$EST" in
+        jpg|jpeg|png|webp|gif|tif|tiff|heic|pdf)
+            # < /dev/null: chiamata dal loop while read, non deve toccare la pipe.
+            if ! exiftool -q -q -all= -tagsfromfile @ -Orientation -ICC_Profile \
+                -overwrite_original "$FILE" < /dev/null 2>> "$LOG_ESTRAZIONI"; then
+                echo "[$(date '+%Y-%m-%d %H:%M:%S')] ⚠️ Pulizia metadati fallita su $(basename "$FILE") (file lasciato com'era)." >> "$LOG_ESTRAZIONI"
+            fi
+            ;;
+    esac
+}
+
 smista_file() {
     local FILE_DA_SMISTARE="$1"
     local NOME_FILE
@@ -291,6 +322,10 @@ smista_file() {
     fi
 
     if mv "$FILE_DA_SMISTARE" "$DEST_PATH"; then
+        # Metadati puliti DOPO lo spostamento (sul percorso definitivo) e
+        # PRIMA della notifica: quando l'avviso arriva il file è già pulito.
+        [ "$PULISCI_METADATI" = 1 ] && pulisci_metadati "$DEST_PATH" "$ESTENSIONE"
+
         # --- SE È UN ARCHIVIO (e il modulo è attivo), LO ESTRAE ---
         # Si decide sull'estensione, non sulla destinazione: così funziona
         # anche con lo smistamento per estensione disattivato.

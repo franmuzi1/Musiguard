@@ -12,6 +12,7 @@ Tutto avviene in modo asincrono in background, con notifiche desktop solo quando
     *   **Scansione ClamAV:** usa `clamdscan` (istantaneo, firme in memoria) se il demone è installato, altrimenti `clamscan`. In caso di minaccia il file viene isolato e ti viene chiesto come procedere.
 *   📂 **Smistamento per estensione:** riconosce il tipo di file e lo sposta nella cartella giusta (Documenti, Immagini, Video, Musica, Archivi, Stampa 3D), gestendo le collisioni di nomi con suffissi `(1)`, `(2)`, … Modulo opzionale: senza, l'antivirus controlla i file e li lascia in `~/Downloads`.
 *   📦 **Estrazione Automatica & Sicura:** archivi (`zip`, `tar.*`, `tgz`, `rar`, `7z`) e compressi singoli (`gz`, `bz2`, `xz`, `zst`) estratti in background in sottocartelle dedicate, con protezione **anti zip-bomb** (limite sulla dimensione decompressa, `MAX_ESTRAZIONE_MB`). A estrazione riuscita l'archivio originale viene eliminato.
+*   🕵️‍♂️ **Privacy (Anti-Tracking):** rimozione automatica dei metadati traccianti (GPS, autore, software) da foto e PDF smistati, con `exiftool`. Conserva orientamento e profilo colore delle immagini; modulo opzionale, si spegne da solo se `exiftool` manca.
 *   ⏱️ **Anti-Corruzione File:** attende che la dimensione del file sia stabile prima di processarlo; un download ancora in corso non viene mai spostato troncato.
 *   🔒 **Robustezza:** `set -u` + shellcheck su tutti gli script, lock `flock` contro le istanze doppie, log con rotazione integrata, riavvio automatico via systemd.
 *   🧹 **Manutenzione "Zero-Touch":** timer systemd giornaliero per pulizia Downloads vecchi, cestino e cache.
@@ -60,7 +61,7 @@ chmod +x *.sh
 ./installa-servizio.sh
 ```
 
-Alla **prima installazione** parte il wizard di configurazione: scegli quali moduli attivare (antivirus download, pulizia giornaliera, verifica SHA, estrazione automatica, smistamento per estensione). Il modulo base è l'**antivirus**: da solo non smista, si assicura solo che i file scaricati non siano pericolosi e li passa in `~/Downloads`. Per riconfigurare in qualsiasi momento:
+Alla **prima installazione** parte il wizard di configurazione: scegli quali moduli attivare (antivirus download, pulizia giornaliera, verifica SHA, estrazione automatica, smistamento per estensione, pulizia metadati privacy). Il modulo base è l'**antivirus**: da solo non smista, si assicura solo che i file scaricati non siano pericolosi e li passa in `~/Downloads`. Per riconfigurare in qualsiasi momento:
 
 ```bash
 ./configura.sh
@@ -68,7 +69,7 @@ Alla **prima installazione** parte il wizard di configurazione: scegli quali mod
 
 Poi imposta il browser per scaricare in `~/PreDownload` anziché in `~/Downloads`.
 
-Le scelte finiscono in `~/.config/musiguard.conf` (solo righe `CHIAVE=numero`, il file viene letto e mai eseguito): `ATTIVA_GUARDIANO`, `ATTIVA_PULIZIA`, `CHIEDI_SHA`, `ESTRAI_ARCHIVI`, `SMISTA_ESTENSIONE`, `MAX_ESTRAZIONE_MB`. Modificabile anche a mano (dopo, riavvia il guardiano: `systemctl --user restart musiguard-guardiano`).
+Le scelte finiscono in `~/.config/musiguard.conf` (solo righe `CHIAVE=numero`, il file viene letto e mai eseguito): `ATTIVA_GUARDIANO`, `ATTIVA_PULIZIA`, `CHIEDI_SHA`, `ESTRAI_ARCHIVI`, `SMISTA_ESTENSIONE`, `PULISCI_METADATI`, `MAX_ESTRAZIONE_MB`. Modificabile anche a mano (dopo, riavvia il guardiano: `systemctl --user restart musiguard-guardiano`).
 
 Comandi utili:
 
@@ -78,6 +79,3 @@ systemctl --user list-timers musiguard-pulizia.timer
 cat ~/MusiGuard/estrazioni.log                  # esiti delle estrazioni
 ```
 
-## 🗺️ Roadmap
-
-*   🕵️‍♂️ **Privacy (Anti-Tracking):** rimozione automatica dei metadati (GPS, autore, software) da immagini e PDF con `exiftool` prima dell'archiviazione.

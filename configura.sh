@@ -22,6 +22,7 @@ PULIZIA=$(leggi ATTIVA_PULIZIA 1)
 SHA=$(leggi CHIEDI_SHA 1)
 ESTRAI=$(leggi ESTRAI_ARCHIVI 1)
 SMISTA=$(leggi SMISTA_ESTENSIONE "$(leggi SMISTA_CATEGORIE 1)")
+METADATI=$(leggi PULISCI_METADATI 1)
 MAX_MB=$(leggi MAX_ESTRAZIONE_MB 10240)
 
 b2z() { [ "$1" = 1 ] && echo TRUE || echo FALSE; }
@@ -37,7 +38,8 @@ if command -v zenity &>/dev/null && [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; t
         "$(b2z "$SHA")"       sha       "🔎 Verifica SHA256 dagli appunti" \
         "$(b2z "$ESTRAI")"    estrai    "📦 Estrazione automatica degli archivi" \
         "$(b2z "$SMISTA")"    smista    "📂 Smistamento per estensione (senza: tutto in Downloads)" \
-        --width=640 --height=360 2>/dev/null) || {
+        "$(b2z "$METADATI")"  metadati  "🕵️ Privacy: rimozione metadati (GPS, autore) da foto e PDF smistati" \
+        --width=640 --height=400 2>/dev/null) || {
         echo "Configurazione annullata: nessuna modifica."
         exit 0
     }
@@ -47,6 +49,7 @@ if command -v zenity &>/dev/null && [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; t
     SHA=$(attivo sha)
     ESTRAI=$(attivo estrai)
     SMISTA=$(attivo smista)
+    METADATI=$(attivo metadati)
 else
     # Fallback senza sessione grafica: domande in terminale.
     chiedi() { # testo default -> 0/1
@@ -63,6 +66,7 @@ else
     SHA=$(chiedi "🔎 Attivare la verifica SHA256 dagli appunti?" "$SHA")
     ESTRAI=$(chiedi "📦 Attivare l'estrazione automatica degli archivi?" "$ESTRAI")
     SMISTA=$(chiedi "📂 Attivare lo smistamento per estensione?" "$SMISTA")
+    METADATI=$(chiedi "🕵️ Attivare la rimozione dei metadati privacy da foto e PDF?" "$METADATI")
 fi
 
 mkdir -p "$(dirname "$CONF")"
@@ -74,10 +78,17 @@ ATTIVA_PULIZIA=$PULIZIA
 CHIEDI_SHA=$SHA
 ESTRAI_ARCHIVI=$ESTRAI
 SMISTA_ESTENSIONE=$SMISTA
+PULISCI_METADATI=$METADATI
 # Tetto (MB) alla dimensione decompressa degli archivi estratti in automatico.
 MAX_ESTRAZIONE_MB=$MAX_MB
 EOF
 echo "Configurazione salvata in $CONF"
+
+# La pulizia metadati dipende da exiftool: se manca, il guardiano tiene il
+# modulo spento da solo — qui si avvisa subito com'è la situazione.
+if [ "$METADATI" = 1 ] && ! command -v exiftool &>/dev/null; then
+    echo "⚠️ Pulizia metadati attivata ma exiftool non è installato: resterà spenta finché non lo installi (sudo apt install libimage-exiftool-perl)."
+fi
 
 # Applica subito lo stato ai servizi, se le unit sono installate; il guardiano
 # legge il conf all'avvio, quindi per fargli vedere le modifiche va riavviato.
