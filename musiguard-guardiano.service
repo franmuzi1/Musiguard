@@ -1,0 +1,31 @@
+# MusiGuard: servizio UTENTE systemd per il guardiano download.
+# Installazione: ./installa-servizio.sh (oppure a mano: copia questo file in
+# ~/.config/systemd/user/ e poi "systemctl --user enable --now musiguard-guardiano")
+#
+# Perché un servizio e non un'esecuzione manuale: se il guardiano muore
+# (crash, inotifywait killato, logout parziale) nessuno lo riavviava e i
+# download restavano in PreDownload in silenzio. Restart=on-failure lo
+# rimette in piedi da solo.
+
+[Unit]
+Description=MusiGuard - guardiano download (scansione e smistamento PreDownload)
+# Legato alla sessione GRAFICA, non al boot: zenity e notify-send hanno
+# bisogno di display e session bus. PartOf lo ferma anche al logout.
+After=graphical-session.target
+PartOf=graphical-session.target
+# Se muore in loop (es. dipendenza mancante: inotifywait, AntiVirusDIY.sh),
+# dopo 5 tentativi in 5 minuti systemd smette di insistere.
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+# %h = home dell'utente (le unit systemd non espandono ~ o $HOME).
+ExecStart=%h/MusiGuard/guardiano-download.sh
+Restart=on-failure
+RestartSec=5
+# NB: il guardiano esce 0 se trova il lock già preso (altra istanza attiva):
+# con on-failure quel caso NON scatena un loop di riavvii, ed è voluto.
+
+[Install]
+WantedBy=graphical-session.target

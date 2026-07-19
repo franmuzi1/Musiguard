@@ -1,0 +1,8 @@
+# Log e stato di runtime: prodotti dagli script, non vanno versionati.
+*.log
+*.log.old
+.*.lock
+.guardiano.lock
+
+# Impostazioni locali di Claude Code (personali, non condivisibili).
+.claude/settings.local.json
