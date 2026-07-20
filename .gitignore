@@ -10,3 +10,18 @@
 # Appunti personali per Marco: restano solo in locale, non sul repo pubblico.
 MARCO.txt
 ANTIVIRUS.txt
+
+# Hardening di rete: setup personale della macchina, resta solo in locale.
+scripts/imposta-privacy-rete.sh
+
+# Manutenzione personale della macchina (pulizia giornaliera, sentinella
+# spazio disco, sincro Syncthing): resta solo in locale, fuori dal repo.
+scripts/pulizia-automatica.sh
+scripts/sentinella-spazio.sh
+scripts/sincro-syncthing.sh
+systemd/musiguard-pulizia.service
+systemd/musiguard-pulizia.timer
+systemd/musiguard-sentinella.service
+systemd/musiguard-sentinella.timer
+systemd/musiguard-sincro.service
+systemd/musiguard-sincro.timer

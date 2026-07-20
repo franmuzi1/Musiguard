@@ -9,7 +9,7 @@ smista i file puliti nella cartella giusta e ti disturba solo quando serve davve
 
 [![Bash](https://img.shields.io/badge/Bash-100%25-4EAA25?logo=gnubash&logoColor=white)](https://www.gnu.org/software/bash/)
 [![Linux](https://img.shields.io/badge/Linux-Debian%20%7C%20Ubuntu-A81D33?logo=debian&logoColor=white)](https://www.debian.org/)
-[![systemd](https://img.shields.io/badge/systemd-user%20units%20%2B%20timer-30D475)](https://systemd.io/)
+[![systemd](https://img.shields.io/badge/systemd-user%20unit-30D475)](https://systemd.io/)
 [![ClamAV](https://img.shields.io/badge/Antivirus-ClamAV-blue)](https://www.clamav.net/)
 [![VirusTotal](https://img.shields.io/badge/2ª%20opinione-VirusTotal%20(opzionale)-394EFF)](https://www.virustotal.com/)
 
@@ -55,12 +55,6 @@ L'analisi combina, in ordine: **MIME vs estensione**, **anti-spoofing del nome**
 - **Privacy anti-tracking** — via `exiftool`, rimozione dei metadati traccianti (GPS, autore, software) da foto e PDF smistati, conservando orientamento e profilo colore. Si spegne da solo se `exiftool` manca.
 - **Anti-corruzione** — un download ancora in corso non viene mai spostato troncato: si procede solo a dimensione stabile.
 
-### 🤖 Manutenzione "zero-touch"
-
-- **Pulizia giornaliera** — Downloads vecchi, cestino e cache, via timer systemd.
-- **Sentinella spazio disco** — controllo giornaliero: sopra la soglia (`SOGLIA_DISCO_PCT`, default 90%) arriva una notifica coi 5 "pesi massimi" della home. **Non cancella mai nulla da sola.**
-- **Sincro Syncthing a orario** — niente demone sempre acceso: ogni sera alle 20 Syncthing parte, si attende il 100% di sincronizzazione (via API locale, tetto `SINCRO_MAX_MINUTI`, default 30) e si rispegne. Se lo hai avviato tu a mano, non viene toccato.
-
 ### 🔒 Robustezza
 
 `set -u` + shellcheck su tutti gli script · lock `flock` contro le istanze doppie · log con rotazione integrata · riavvio automatico via systemd (`Restart=on-failure`).
@@ -73,8 +67,9 @@ L'analisi combina, in ordine: **MIME vs estensione**, **anti-spoofing del nome**
 sudo apt update
 sudo apt install -y inotify-tools clamav zenity libnotify-bin \
     tar unzip unrar p7zip-full wl-clipboard
-# Consigliati: clamav-daemon (scansioni istantanee), zstd (archivi .zst)
-sudo apt install -y clamav-daemon zstd
+# Consigliati: clamav-daemon (scansioni istantanee), zstd (archivi .zst),
+# libimage-exiftool-perl (pulizia metadati), curl + jq (VirusTotal)
+sudo apt install -y clamav-daemon zstd libimage-exiftool-perl curl jq
 ```
 
 > Su X11 al posto di `wl-clipboard` serve `xclip`.
@@ -88,11 +83,11 @@ chmod +x installa-servizio.sh scripts/*.sh
 ./installa-servizio.sh
 ```
 
-Alla **prima installazione** parte il wizard: scegli quali moduli attivare. Il modulo base è l'**antivirus**: da solo non smista, si assicura solo che i file scaricati non siano pericolosi e li passa in `~/Downloads`.
+Alla **prima installazione** partono le configurazioni guidate, in ordine: prima quella del **volume virtuale isolato** (vedi passo 4), poi il **wizard dei moduli**. Il modulo base è l'**antivirus**: da solo non smista, si assicura solo che i file scaricati non siano pericolosi e li passa in `~/Downloads`.
 
 **3. Punta il browser su `~/PreDownload`** al posto di `~/Downloads`. Fatto. 🎉
 
-**4. *(Opzionale, consigliato)* Disco elastico `noexec`** — trasforma `~/PreDownload` in un volume separato dove nulla può essere eseguito, nemmeno per sbaglio: un file immagine sparso (50GB *virtuali*: sul disco vero occupa solo lo spazio dei file davvero presenti) montato con `noexec,nosuid,nodev` a ogni avvio. Idempotente e rilanciabile; l'immagine esistente non viene mai riformattata.
+**4. *(Opzionale, consigliato)* Volume virtuale isolato** — alla prima installazione parte la **configurazione guidata**: trasforma `~/PreDownload` in un volume separato dove nulla può essere eseguito, nemmeno per sbaglio. È un'immagine *elastica*: la dimensione scelta è solo un tetto virtuale (100GB dichiarati **non** occupano davvero 100GB — sul disco pesa solo quanto i file presenti), montata con `noexec,nosuid,nodev` a ogni avvio. Se l'hai saltata, o per cambiare dimensione (l'immagine esistente non viene mai riformattata):
 
 ```bash
 sudo ~/MusiGuard/scripts/crea-disco-predownload.sh        # default 50GB
@@ -108,15 +103,12 @@ Riconfigurabile in qualsiasi momento con il wizard (`./scripts/configura.sh`) op
 | Chiave | Default | Effetto |
 |---|:---:|---|
 | `ATTIVA_GUARDIANO` | `1` | Demone di sorveglianza su `~/PreDownload` |
-| `ATTIVA_PULIZIA` | `1` | Pulizia giornaliera (Downloads vecchi, cestino, cache) |
 | `CHIEDI_SHA` | `1` | Confronto SHA256 con l'hash negli appunti |
 | `CONTROLLO_VT` | `1` | Seconda opinione VirusTotal (serve la chiave, vedi sotto) |
 | `ESTRAI_ARCHIVI` | `1` | Estrazione automatica degli archivi |
 | `SMISTA_ESTENSIONE` | `1` | Smistamento nelle cartelle per categoria |
 | `PULISCI_METADATI` | `1` | Rimozione metadati da foto e PDF |
 | `MAX_ESTRAZIONE_MB` | `10240` | Tetto anti zip-bomb sulla dimensione decompressa |
-| `SOGLIA_DISCO_PCT` | `90` | Soglia % della sentinella spazio disco |
-| `SINCRO_MAX_MINUTI` | `30` | Tempo massimo della sincro Syncthing serale |
 
 <details>
 <summary><b>🔑 Attivare VirusTotal</b></summary>
@@ -135,17 +127,6 @@ Attivo da subito, nessun riavvio necessario. **Privacy e limiti:** viaggia solo 
 
 </details>
 
-## 🌐 Bonus: privacy di rete
-
-Nel repo c'è anche `scripts/imposta-privacy-rete.sh`, un setup una-tantum (idempotente, rilanciabile) da eseguire con `sudo`:
-
-- **Firewall ufw attivato davvero** — nega tutto in ingresso, con eccezioni per Syncthing e KDE Connect (protocolli autenticati). Configurato *prima* del DNS apposta: se la parte DNS fallisse, il firewall resta comunque su.
-- **DNS cifrato** — `systemd-resolved` (installato se manca) con **DNS-over-TLS rigoroso verso Quad9**, che blocca anche i domini malevoli noti.
-
-```bash
-sudo ~/MusiGuard/scripts/imposta-privacy-rete.sh
-```
-
 ## 📂 Struttura del progetto
 
 <details>
@@ -159,20 +140,10 @@ MusiGuard/
 ├── scripts/
 │   ├── guardiano-download.sh          # Il demone in ascolto su ~/PreDownload
 │   ├── AntiVirusDIY.sh                # Motore di scansione (MIME, nome, SHA256, ClamAV, VT)
-│   ├── pulizia-automatica.sh          # Manutenzione: Downloads vecchi, cestino, cache
-│   ├── sentinella-spazio.sh           # Avviso disco pieno coi 5 "pesi massimi" (non cancella)
-│   ├── sincro-syncthing.sh            # Syncthing a orario: avvia, sincronizza, spegne
-│   ├── imposta-privacy-rete.sh        # Una-tantum: ufw + DNS-over-TLS (Quad9) + MAC random
 │   ├── crea-disco-predownload.sh      # Opzionale: disco elastico noexec per ~/PreDownload
 │   └── configura.sh                   # Wizard di scelta dei moduli (primo avvio e on-demand)
 └── systemd/
-    ├── musiguard-guardiano.service    # Servizio del guardiano (Restart=on-failure)
-    ├── musiguard-pulizia.service      # Servizio oneshot della pulizia
-    ├── musiguard-pulizia.timer        # Timer giornaliero della pulizia
-    ├── musiguard-sentinella.service   # Servizio oneshot della sentinella disco
-    ├── musiguard-sentinella.timer     # Timer giornaliero della sentinella
-    ├── musiguard-sincro.service       # Servizio oneshot della sincro Syncthing
-    └── musiguard-sincro.timer         # Timer della sincro (ogni sera alle 20)
+    └── musiguard-guardiano.service    # Servizio del guardiano (Restart=on-failure)
 ```
 
 </details>
@@ -182,12 +153,9 @@ MusiGuard/
 | Comando | Cosa mostra |
 |---|---|
 | `journalctl --user -u musiguard-guardiano -f` | Log del guardiano in diretta |
-| `systemctl --user list-timers 'musiguard-*'` | Prossime esecuzioni dei timer |
 | `cat ~/MusiGuard/estrazioni.log` | Esiti delle estrazioni |
 | `cat ~/MusiGuard/quarantena.log` | Storia della quarantena (file e motivi) |
 | `ls -la ~/PreDownload/.Quarantena` | Cosa c'è in quarantena adesso |
-| `cat ~/MusiGuard/sentinella.log` | Storico controlli spazio disco |
-| `cat ~/MusiGuard/sincro.log` | Esiti delle sincro Syncthing |
 
 ---
 

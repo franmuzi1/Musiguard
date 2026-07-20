@@ -18,7 +18,6 @@ leggi() {
 # Stato attuale come default del wizard (tutto attivo al primo avvio).
 # SMISTA: si legge anche la vecchia chiave SMISTA_CATEGORIE (conf esistenti).
 GUARDIANO=$(leggi ATTIVA_GUARDIANO 1)
-PULIZIA=$(leggi ATTIVA_PULIZIA 1)
 SHA=$(leggi CHIEDI_SHA 1)
 VT=$(leggi CONTROLLO_VT 1)
 ESTRAI=$(leggi ESTRAI_ARCHIVI 1)
@@ -35,7 +34,6 @@ if command -v zenity &>/dev/null && [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; t
         --column="Attivo" --column="ID" --column="Modulo" \
         --hide-column=2 --print-column=2 --separator="|" \
         "$(b2z "$GUARDIANO")" guardiano "🛡️ Antivirus download: controlla che i file scaricati NON siano pericolosi (da solo non smista: i file sicuri vanno in Downloads)" \
-        "$(b2z "$PULIZIA")"   pulizia   "🧹 Pulizia giornaliera (Downloads vecchi, cestino, cache)" \
         "$(b2z "$SHA")"       sha       "🔎 Verifica SHA256 dagli appunti" \
         "$(b2z "$VT")"        vt        "🌐 Seconda opinione VirusTotal: 70+ antivirus (viaggia solo l'hash, MAI il file; serve chiave API gratuita)" \
         "$(b2z "$ESTRAI")"    estrai    "📦 Estrazione automatica degli archivi" \
@@ -47,7 +45,6 @@ if command -v zenity &>/dev/null && [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; t
     }
     attivo() { [[ "|$SEL|" == *"|$1|"* ]] && echo 1 || echo 0; }
     GUARDIANO=$(attivo guardiano)
-    PULIZIA=$(attivo pulizia)
     SHA=$(attivo sha)
     VT=$(attivo vt)
     ESTRAI=$(attivo estrai)
@@ -65,7 +62,6 @@ else
     }
     echo "MusiGuard — configurazione moduli (Invio = valore tra parentesi)"
     GUARDIANO=$(chiedi "🛡️ Attivare l'antivirus download? (controlla che i file non siano pericolosi; da solo non smista)" "$GUARDIANO")
-    PULIZIA=$(chiedi "🧹 Attivare la pulizia giornaliera?" "$PULIZIA")
     SHA=$(chiedi "🔎 Attivare la verifica SHA256 dagli appunti?" "$SHA")
     VT=$(chiedi "🌐 Attivare la seconda opinione VirusTotal? (viaggia solo l'hash, mai il file; serve chiave API gratuita)" "$VT")
     ESTRAI=$(chiedi "📦 Attivare l'estrazione automatica degli archivi?" "$ESTRAI")
@@ -78,7 +74,6 @@ cat > "$CONF" <<EOF
 # MusiGuard — configurazione moduli (generata da configura.sh, rilanciabile).
 # Solo righe CHIAVE=numero: tutto il resto viene ignorato, mai eseguito.
 ATTIVA_GUARDIANO=$GUARDIANO
-ATTIVA_PULIZIA=$PULIZIA
 CHIEDI_SHA=$SHA
 CONTROLLO_VT=$VT
 ESTRAI_ARCHIVI=$ESTRAI
@@ -114,13 +109,6 @@ if [ -f "$UNIT_DIR/musiguard-guardiano.service" ]; then
     else
         systemctl --user disable --now musiguard-guardiano.service 2>/dev/null
         echo "Guardiano: disattivato."
-    fi
-    if [ "$PULIZIA" = 1 ]; then
-        systemctl --user enable --now musiguard-pulizia.timer >/dev/null 2>&1
-        echo "Pulizia giornaliera: attiva."
-    else
-        systemctl --user disable --now musiguard-pulizia.timer 2>/dev/null
-        echo "Pulizia giornaliera: disattivata."
     fi
 else
     echo "Unit systemd non ancora installate: lancia ./installa-servizio.sh"
