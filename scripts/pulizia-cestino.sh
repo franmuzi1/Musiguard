@@ -43,6 +43,21 @@ escape_markup() {
     sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g' <<< "$1"
 }
 
+# Un click sul corpo della notifica apre il log indicato col visualizzatore
+# di testo di default (stesso schema di notifica_click in guardiano-download.sh,
+# ma per un file di log invece che una cartella).
+notifica_click_log() {
+    local TITOLO="$1" CORPO="$2" LOGFILE="$3"
+    if command -v notify-send &>/dev/null; then
+        local AZIONE
+        AZIONE=$(notify-send --app-name="MusiGuard" --icon=dialog-warning --urgency=critical \
+            -h int:transient:1 -t 5000 \
+            -A "default=Apri log" \
+            "$TITOLO" "$CORPO" 2>/dev/null)
+        [ "$AZIONE" = "default" ] && xdg-open "$LOGFILE" &>/dev/null
+    fi
+}
+
 # Elenco leggibile per l'utente: nome, dimensione, data. stat + date riga per
 # riga (non ls|awk): un nome file con spazi spezzerebbe lo split per campi di
 # awk e mostrerebbe dati sbagliati.
@@ -72,10 +87,7 @@ if command -v clamscan &>/dev/null || command -v clamdscan &>/dev/null; then
         systemctl is-active --quiet clamav-freshclam 2>/dev/null || SERVIZIO_MSG=" (il servizio di sistema clamav-freshclam risulta NON attivo)"
         if [ "$ETA_GIORNI" -gt "$SOGLIA_GIORNI" ]; then
             echo "[$(date '+%Y-%m-%d %H:%M:%S')] ⚠️ Firme ClamAV vecchie di $ETA_GIORNI giorni$SERVIZIO_MSG. Aggiorna con: sudo systemctl enable --now clamav-freshclam (oppure: sudo freshclam)." >> "$LOG_CLAMAV"
-            if command -v notify-send &>/dev/null; then
-                notify-send --app-name="MusiGuard" --icon=dialog-warning --urgency=critical \
-                    "⚠️ Firme ClamAV non aggiornate" "Vecchie di $ETA_GIORNI giorni$SERVIZIO_MSG. Dettagli in clamav.log." 2>/dev/null
-            fi
+            notifica_click_log "⚠️ Firme ClamAV non aggiornate" "Vecchie di $ETA_GIORNI giorni$SERVIZIO_MSG." "$LOG_CLAMAV"
         else
             echo "[$(date '+%Y-%m-%d %H:%M:%S')] ✅ Firme ClamAV aggiornate (ultimo aggiornamento $ETA_GIORNI giorni fa)." >> "$LOG_CLAMAV"
         fi
@@ -120,9 +132,7 @@ if [ "$SVUOTA_CESTINO" = 1 ] && [ -n "$DIR_CESTINO" ] && [ -d "$DIR_CESTINO" ]; 
             # Nessuna sessione grafica: si avvisa soltanto, non si elimina
             # nulla senza conferma esplicita dell'utente.
             echo "[$(date '+%Y-%m-%d %H:%M:%S')] ℹ️ Pulizia settimanale: $N elementi nel Cestino, nessuna sessione grafica per chiedere conferma (lasciati intatti)." >> "$LOG_CESTINO"
-            if command -v notify-send &>/dev/null; then
-                notify-send --app-name="MusiGuard" --icon=dialog-warning "🗑️ Cestino di sistema" "$N elementi nel Cestino da rivedere: cestino.log." 2>/dev/null
-            fi
+            notifica_click_log "🗑️ Cestino di sistema" "$N elementi nel Cestino da rivedere." "$LOG_CESTINO"
         fi
     fi
 fi
@@ -157,9 +167,7 @@ if [ -n "$DIR_QUARANTENA" ] && [ -d "$DIR_QUARANTENA" ]; then
             # Nessuna sessione grafica: si avvisa soltanto, non si elimina nulla
             # senza conferma esplicita dell'utente.
             echo "[$(date '+%Y-%m-%d %H:%M:%S')] ℹ️ Pulizia settimanale: $N file in quarantena, nessuna sessione grafica per chiedere conferma (lasciati intatti)." >> "$LOG_QUARANTENA"
-            if command -v notify-send &>/dev/null; then
-                notify-send --app-name="MusiGuard" --icon=dialog-warning "🔒 Quarantena MusiGuard" "$N file in quarantena da rivedere: journalctl o quarantena.log." 2>/dev/null
-            fi
+            notifica_click_log "🔒 Quarantena MusiGuard" "$N file in quarantena da rivedere." "$LOG_QUARANTENA"
         fi
     fi
 fi

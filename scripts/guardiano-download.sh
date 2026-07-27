@@ -113,6 +113,22 @@ notifica_click() {
     fi
 }
 
+# Gemella di notifica_click ma per aprire un LOG invece di una cartella: un
+# click sul corpo apre il file col visualizzatore di testo di default.
+notifica_click_log() {
+    local TITOLO="$1" CORPO="$2" LOGFILE="$3"
+    if command -v notify-send &>/dev/null; then
+        local AZIONE
+        AZIONE=$(notify-send --app-name="MusiGuard" --icon=dialog-error --urgency=critical \
+            -h int:transient:1 -t 5000 \
+            -A "default=Apri log" \
+            "$TITOLO" "$CORPO" 2>/dev/null)
+        [ "$AZIONE" = "default" ] && xdg-open "$LOGFILE" &>/dev/null
+    else
+        zenity --notification --text="$TITOLO\n📄 $CORPO" 2>/dev/null
+    fi
+}
+
 # --- NUOVO: FUNZIONE DI ESTRAZIONE IN BACKGROUND ---
 estrai_archivio() {
     local FILE_PATH="$1"
@@ -156,9 +172,7 @@ estrai_archivio() {
         esac
         if [[ "$DIM_DICHIARATA" =~ ^[0-9]+$ ]] && [ "$DIM_DICHIARATA" -gt "$MAX_BYTE" ]; then
             echo "[$(date '+%Y-%m-%d %H:%M:%S')] ⛔ RIFIUTATO: $NOME dichiara $DIM_DICHIARATA byte decompressi (limite ${MAX_ESTRAZIONE_MB}MB). Archivio conservato, non estratto." >> "$LOG_ESTRAZIONI"
-            if command -v notify-send &>/dev/null; then
-                notify-send --app-name="MusiGuard" --icon=dialog-error --urgency=critical "⛔ Estrazione rifiutata" "$NOME supera il limite di ${MAX_ESTRAZIONE_MB}MB decompressi. Estrailo a mano se ti fidi." 2>/dev/null
-            fi
+            notifica_click_log "⛔ Estrazione rifiutata" "$NOME supera il limite di ${MAX_ESTRAZIONE_MB}MB decompressi. Estrailo a mano se ti fidi." "$LOG_ESTRAZIONI"
             exit 0
         fi
 
@@ -182,9 +196,7 @@ estrai_archivio() {
             while [ "$N" -le 999 ] && ! mkdir "$DIR_DEST/$NOME_CART ($N)" 2>/dev/null; do N=$((N+1)); done
             if [ "$N" -gt 999 ]; then
                 echo "[$(date '+%Y-%m-%d %H:%M:%S')] ❌ ERRORE: impossibile creare la cartella di estrazione per $NOME in $DIR_DEST" >> "$LOG_ESTRAZIONI"
-                if command -v notify-send &>/dev/null; then
-                    notify-send --app-name="MusiGuard" --icon=dialog-error --urgency=critical "❌ Errore Estrazione" "Impossibile creare la cartella per $NOME. Leggi estrazioni.log." 2>/dev/null
-                fi
+                notifica_click_log "❌ Errore Estrazione" "Impossibile creare la cartella per $NOME." "$LOG_ESTRAZIONI"
                 exit 0
             fi
             NOME_CART="$NOME_CART ($N)"
@@ -254,9 +266,7 @@ estrai_archivio() {
             # spazzatura accanto a quella buona. La cartella è fresca e creata
             # da noi (mkdir atomico sopra), quindi rm -rf è sicuro.
             rm -rf "$PATH_DEST_ESTRAZIONE"
-            if command -v notify-send &>/dev/null; then
-                notify-send --app-name="MusiGuard" --icon=dialog-error --urgency=critical "❌ Errore Estrazione" "Impossibile estrarre $NOME. Leggi estrazioni.log." 2>/dev/null
-            fi
+            notifica_click_log "❌ Errore Estrazione" "Impossibile estrarre $NOME." "$LOG_ESTRAZIONI"
         fi
     ) &
 }
