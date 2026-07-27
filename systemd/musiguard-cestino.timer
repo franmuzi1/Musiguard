@@ -1,10 +1,10 @@
 # MusiGuard: fa scattare musiguard-cestino.service una volta a settimana.
 # Persistent=true: se il PC era spento/sospeso al momento previsto, il colpo
-# perso viene recuperato al primo avvio successivo (la quarantena non deve
-# restare senza controllo per settimane solo perché il PC era spento).
+# perso viene recuperato al primo avvio successivo (quarantena e firme ClamAV
+# non devono restare senza controllo per settimane solo perché il PC era spento).
 
 [Unit]
-Description=MusiGuard - timer pulizia settimanale (Cestino + Quarantena)
+Description=MusiGuard - timer pulizia e controlli settimanali
 
 [Timer]
 OnCalendar=weekly

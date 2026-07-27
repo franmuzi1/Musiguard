@@ -111,10 +111,10 @@ else
     echo "Guardiano disattivato da configurazione (riattivabile con ./scripts/configura.sh)."
 fi
 
-# Timer pulizia settimanale (Cestino + domanda Quarantena): SEMPRE attivo,
-# a prescindere da SVUOTA_CESTINO — la domanda sulla quarantena non è un
-# modulo disattivabile. musiguard-cestino.service resta "static" (lo fa
-# scattare solo il timer, non va enable-ato da solo).
+# Timer pulizia e controlli settimanali (ClamAV, Cestino, Quarantena, log):
+# SEMPRE attivo, a prescindere da SVUOTA_CESTINO — quarantena, firme ClamAV e
+# rotazione log non sono moduli disattivabili. musiguard-cestino.service
+# resta "static" (lo fa scattare solo il timer, non va enable-ato da solo).
 systemctl --user enable --now musiguard-cestino.timer
 
 echo

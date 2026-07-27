@@ -44,7 +44,7 @@ L'analisi combina, in ordine: **MIME vs estensione**, **anti-spoofing del nome**
 | **MIME vs estensione** | Rileva eseguibili nascosti — Linux (ELF/script) **e Windows (PE)** — camuffati da `.pdf`, `.jpg`, ecc. |
 | **Anti-spoofing del nome** | Smaschera doppie estensioni ingannevoli (`fattura.pdf.exe`, spazi di riempimento inclusi) e caratteri Unicode invisibili/direzionali (trucco RTLO che inverte il nome mostrato). |
 | **SHA256 dagli appunti** | Se hai copiato l'hash dal sito del download, viene confrontato in automatico. Niente popup: se negli appunti non c'è un hash, non succede (e non si calcola) nulla. |
-| **Scansione ClamAV** | Usa `clamdscan` (istantaneo, firme in memoria) se il demone è installato, altrimenti `clamscan`. |
+| **Scansione ClamAV** | Usa `clamdscan` (istantaneo, firme in memoria) se il demone è installato, altrimenti `clamscan`. Una volta a settimana viene controllata anche l'**età delle firme**: se sono vecchie (>7 giorni) o `clamav-freshclam` non è attivo, arriva un avviso con le istruzioni per aggiornarle (richiede `sudo`, MusiGuard non lo fa da solo). |
 | **Quarantena vera** | Il sospetto va subito in `~/PreDownload/.Quarantena` (sul volume `noexec`) con permessi `000` e motivo in `quarantena.log`. La finestra di scelta (elimina / lascia / ignora e smista) arriva dopo, **senza bloccare** la coda. |
 | **VirusTotal** *(opzionale)* | Lookup del **solo hash SHA256** su API v3: il file non lascia mai il PC. 70+ motori dove ClamAV da solo arriva corto. Senza chiave o senza rete il modulo tace e non blocca nulla. |
 
@@ -54,11 +54,11 @@ L'analisi combina, in ordine: **MIME vs estensione**, **anti-spoofing del nome**
 - **Estrazione automatica e sicura** — archivi (`zip`, `tar.*`, `tgz`, `rar`, `7z`) e compressi singoli (`gz`, `bz2`, `xz`, `zst`) estratti in background in sottocartelle dedicate, con protezione **anti zip-bomb** (`MAX_ESTRAZIONE_MB`). A estrazione riuscita l'originale viene eliminato.
 - **Privacy anti-tracking** — via `exiftool`, rimozione dei metadati traccianti (GPS, autore, software) da foto e PDF smistati, conservando orientamento e profilo colore. Si spegne da solo se `exiftool` manca.
 - **Anti-corruzione** — un download ancora in corso non viene mai spostato troncato: si procede solo a dimensione stabile.
-- **Pulizia settimanale** — una volta a settimana, elenco + domanda "elimino tutto?" (mai automatico) per il Cestino di sistema (modulo opzionale, spento di default) e **sempre**, senza poterla disattivare, per la Quarantena di MusiGuard.
+- **Pulizia settimanale** — una volta a settimana: elenco + domanda "elimino tutto?" (mai automatico) per il Cestino di sistema (modulo opzionale, spento di default) e **sempre**, senza poterla disattivare, per la Quarantena di MusiGuard; controllo della freschezza delle firme ClamAV; rotazione dei log MusiGuard oltre una certa dimensione.
 
 ### 🔒 Robustezza
 
-`set -u` + shellcheck su tutti gli script · lock `flock` contro le istanze doppie · log con rotazione integrata · riavvio automatico via systemd (`Restart=on-failure`).
+`set -u` + shellcheck su tutti gli script · lock `flock` contro le istanze doppie · log con rotazione automatica settimanale (per dimensione, 4 backup) · riavvio automatico via systemd (`Restart=on-failure`).
 
 ## 🛠️ Installazione
 
@@ -145,7 +145,7 @@ MusiGuard/
 │   ├── guardiano-download.sh          # Il demone in ascolto su ~/PreDownload
 │   ├── AntiVirusDIY.sh                # Motore di scansione (MIME, nome, SHA256, ClamAV, VT)
 │   ├── crea-disco-predownload.sh      # Opzionale: disco elastico noexec per ~/PreDownload
-│   ├── pulizia-cestino.sh             # Pulizia settimanale: Cestino + domanda Quarantena
+│   ├── pulizia-cestino.sh             # Pulizia/controlli settimanali: firme ClamAV, Cestino, Quarantena, log
 │   └── configura.sh                   # Wizard di scelta dei moduli (primo avvio e on-demand)
 └── systemd/
     ├── musiguard-guardiano.service    # Servizio del guardiano (Restart=on-failure)
@@ -164,6 +164,7 @@ MusiGuard/
 | `cat ~/MusiGuard/quarantena.log` | Storia della quarantena (file e motivi) |
 | `ls -la ~/PreDownload/.Quarantena` | Cosa c'è in quarantena adesso |
 | `cat ~/MusiGuard/cestino.log` | Storia della pulizia settimanale del Cestino |
+| `cat ~/MusiGuard/clamav.log` | Storia del controllo settimanale sulle firme ClamAV |
 | `systemctl --user list-timers musiguard-cestino.timer` | Quando scatta il prossimo giro di pulizia |
 | `systemctl --user start musiguard-cestino.service` | Forza subito un giro di pulizia (senza aspettare il timer) |
 
