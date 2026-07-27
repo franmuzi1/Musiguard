@@ -23,7 +23,8 @@ VT=$(leggi CONTROLLO_VT 1)
 ESTRAI=$(leggi ESTRAI_ARCHIVI 1)
 SMISTA=$(leggi SMISTA_ESTENSIONE "$(leggi SMISTA_CATEGORIE 1)")
 METADATI=$(leggi PULISCI_METADATI 1)
-# Distruttivo (svuota per sempre il Cestino): default spento, va scelto a mano.
+# Chiede se svuotare il Cestino una volta a settimana (come la Quarantena:
+# elenco + conferma, mai automatico): default spento, va scelto a mano.
 CESTINO=$(leggi SVUOTA_CESTINO 0)
 MAX_MB=$(leggi MAX_ESTRAZIONE_MB 10240)
 
@@ -41,7 +42,7 @@ if command -v zenity &>/dev/null && [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; t
         "$(b2z "$ESTRAI")"    estrai    "📦 Estrazione automatica degli archivi" \
         "$(b2z "$SMISTA")"    smista    "📂 Smistamento per estensione (senza: tutto in Downloads)" \
         "$(b2z "$METADATI")"  metadati  "🕵️ Privacy: rimozione metadati (GPS, autore) da foto e PDF smistati" \
-        "$(b2z "$CESTINO")"   cestino   "🗑️ Svuota il Cestino di sistema una volta a settimana (la Quarantena, invece, viene sempre chiesta ogni settimana, a parte)" \
+        "$(b2z "$CESTINO")"   cestino   "🗑️ Chiedi se svuotare il Cestino una volta a settimana (elenco + conferma, come la Quarantena — che invece viene sempre chiesta, a parte)" \
         --width=640 --height=400 2>/dev/null) || {
         echo "Configurazione annullata: nessuna modifica."
         exit 0
@@ -71,7 +72,7 @@ else
     ESTRAI=$(chiedi "📦 Attivare l'estrazione automatica degli archivi?" "$ESTRAI")
     SMISTA=$(chiedi "📂 Attivare lo smistamento per estensione?" "$SMISTA")
     METADATI=$(chiedi "🕵️ Attivare la rimozione dei metadati privacy da foto e PDF?" "$METADATI")
-    CESTINO=$(chiedi "🗑️ Svuotare il Cestino di sistema una volta a settimana? (la Quarantena viene comunque sempre chiesta ogni settimana, a parte)" "$CESTINO")
+    CESTINO=$(chiedi "🗑️ Chiedere se svuotare il Cestino una volta a settimana? (elenco + conferma, come la Quarantena — che invece viene comunque sempre chiesta, a parte)" "$CESTINO")
 fi
 
 mkdir -p "$(dirname "$CONF")"
@@ -84,9 +85,9 @@ CONTROLLO_VT=$VT
 ESTRAI_ARCHIVI=$ESTRAI
 SMISTA_ESTENSIONE=$SMISTA
 PULISCI_METADATI=$METADATI
-# Svuota il Cestino di sistema una volta a settimana (musiguard-cestino.timer).
-# La domanda sulla Quarantena, invece, arriva SEMPRE ogni settimana a parte,
-# indipendentemente da questa chiave: non è un modulo disattivabile.
+# Chiede se svuotare il Cestino una volta a settimana (musiguard-cestino.timer,
+# elenco + conferma, mai automatico). La domanda sulla Quarantena, invece,
+# arriva SEMPRE ogni settimana a parte: non è un modulo disattivabile.
 SVUOTA_CESTINO=$CESTINO
 # Tetto (MB) alla dimensione decompressa degli archivi estratti in automatico.
 MAX_ESTRAZIONE_MB=$MAX_MB
