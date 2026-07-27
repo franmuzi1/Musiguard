@@ -8,7 +8,7 @@ set -u
 
 DIR_SRC="$(cd "$(dirname "$0")" && pwd)"
 UNIT_DIR="${HOME}/.config/systemd/user"
-UNITS=(musiguard-guardiano.service)
+UNITS=(musiguard-guardiano.service musiguard-cestino.service musiguard-cestino.timer)
 UNITS_VECCHIE=(guardiano.service pulizia.timer pulizia.service)
 
 for U in "${UNITS[@]}"; do
@@ -111,6 +111,12 @@ else
     echo "Guardiano disattivato da configurazione (riattivabile con ./scripts/configura.sh)."
 fi
 
+# Timer pulizia settimanale (Cestino + domanda Quarantena): SEMPRE attivo,
+# a prescindere da SVUOTA_CESTINO — la domanda sulla quarantena non è un
+# modulo disattivabile. musiguard-cestino.service resta "static" (lo fa
+# scattare solo il timer, non va enable-ato da solo).
+systemctl --user enable --now musiguard-cestino.timer
+
 echo
 systemctl --user status musiguard-guardiano.service --no-pager || true
 echo
@@ -118,3 +124,5 @@ echo "Fatto. Comandi utili:"
 echo "  log guardiano:    journalctl --user -u musiguard-guardiano -f"
 echo "  stato:            systemctl --user status musiguard-guardiano"
 echo "  stop/disinstallo: systemctl --user disable --now musiguard-guardiano.service"
+echo "  pulizia manuale:  systemctl --user start musiguard-cestino.service"
+echo "  prossimo giro:    systemctl --user list-timers musiguard-cestino.timer"

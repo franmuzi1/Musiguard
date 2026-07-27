@@ -54,6 +54,7 @@ L'analisi combina, in ordine: **MIME vs estensione**, **anti-spoofing del nome**
 - **Estrazione automatica e sicura** — archivi (`zip`, `tar.*`, `tgz`, `rar`, `7z`) e compressi singoli (`gz`, `bz2`, `xz`, `zst`) estratti in background in sottocartelle dedicate, con protezione **anti zip-bomb** (`MAX_ESTRAZIONE_MB`). A estrazione riuscita l'originale viene eliminato.
 - **Privacy anti-tracking** — via `exiftool`, rimozione dei metadati traccianti (GPS, autore, software) da foto e PDF smistati, conservando orientamento e profilo colore. Si spegne da solo se `exiftool` manca.
 - **Anti-corruzione** — un download ancora in corso non viene mai spostato troncato: si procede solo a dimensione stabile.
+- **Pulizia settimanale** — svuota il Cestino di sistema una volta a settimana (modulo opzionale, spento di default). La domanda "svuoto la Quarantena?" arriva invece **sempre**, una volta a settimana, con l'elenco dei file sospetti accumulati: non è disattivabile.
 
 ### 🔒 Robustezza
 
@@ -108,7 +109,10 @@ Riconfigurabile in qualsiasi momento con il wizard (`./scripts/configura.sh`) op
 | `ESTRAI_ARCHIVI` | `1` | Estrazione automatica degli archivi |
 | `SMISTA_ESTENSIONE` | `1` | Smistamento nelle cartelle per categoria |
 | `PULISCI_METADATI` | `1` | Rimozione metadati da foto e PDF |
+| `SVUOTA_CESTINO` | `0` | Svuota il Cestino di sistema una volta a settimana (distruttivo: spento di default) |
 | `MAX_ESTRAZIONE_MB` | `10240` | Tetto anti zip-bomb sulla dimensione decompressa |
+
+> La domanda settimanale "svuoto la Quarantena?" **non** è tra queste chiavi: arriva sempre (`musiguard-cestino.timer`), a prescindere da `SVUOTA_CESTINO`.
 
 <details>
 <summary><b>🔑 Attivare VirusTotal</b></summary>
@@ -141,9 +145,12 @@ MusiGuard/
 │   ├── guardiano-download.sh          # Il demone in ascolto su ~/PreDownload
 │   ├── AntiVirusDIY.sh                # Motore di scansione (MIME, nome, SHA256, ClamAV, VT)
 │   ├── crea-disco-predownload.sh      # Opzionale: disco elastico noexec per ~/PreDownload
+│   ├── pulizia-cestino.sh             # Pulizia settimanale: Cestino + domanda Quarantena
 │   └── configura.sh                   # Wizard di scelta dei moduli (primo avvio e on-demand)
 └── systemd/
-    └── musiguard-guardiano.service    # Servizio del guardiano (Restart=on-failure)
+    ├── musiguard-guardiano.service    # Servizio del guardiano (Restart=on-failure)
+    ├── musiguard-cestino.service      # Oneshot: eseguito solo dal timer sotto
+    └── musiguard-cestino.timer        # Fa scattare la pulizia una volta a settimana
 ```
 
 </details>
@@ -156,6 +163,9 @@ MusiGuard/
 | `cat ~/MusiGuard/estrazioni.log` | Esiti delle estrazioni |
 | `cat ~/MusiGuard/quarantena.log` | Storia della quarantena (file e motivi) |
 | `ls -la ~/PreDownload/.Quarantena` | Cosa c'è in quarantena adesso |
+| `cat ~/MusiGuard/cestino.log` | Storia della pulizia settimanale del Cestino |
+| `systemctl --user list-timers musiguard-cestino.timer` | Quando scatta il prossimo giro di pulizia |
+| `systemctl --user start musiguard-cestino.service` | Forza subito un giro di pulizia (senza aspettare il timer) |
 
 ---
 

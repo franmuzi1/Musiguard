@@ -1,0 +1,15 @@
+# MusiGuard: pulizia settimanale (Cestino di sistema + domanda Quarantena).
+# Non va abilitato/avviato direttamente: lo attiva musiguard-cestino.timer.
+# Installazione: ./installa-servizio.sh (oppure a mano: copia in
+# ~/.config/systemd/user/ e poi "systemctl --user enable --now musiguard-cestino.timer")
+
+[Unit]
+Description=MusiGuard - pulizia settimanale (Cestino + Quarantena)
+# Serve zenity/notify-send per la domanda sulla quarantena: bisogno di
+# display e session bus, come il guardiano.
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/MusiGuard/scripts/pulizia-cestino.sh
